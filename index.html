@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EBRO 表单提取器</title>
+<!-- SheetJS 用于生成 Excel -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -60,10 +62,20 @@
   .btn:hover:not(:disabled) { background: #357abd; }
   .btn:disabled { background: #ccc; cursor: not-allowed; }
 
-  .btn-secondary {
-    background: #28a745;
+  .btn-excel {
+    background: #217346; /* Excel 绿 */
   }
-  .btn-secondary:hover:not(:disabled) { background: #218838; }
+  .btn-excel:hover:not(:disabled) { background: #1a5c38; }
+
+  .btn-json {
+    background: #6c757d;
+  }
+  .btn-json:hover:not(:disabled) { background: #5a6268; }
+
+  .button-row {
+    display: flex; gap: 10px; margin-top: 16px;
+  }
+  .button-row .btn { margin-top: 0; flex: 1; }
 
   .status {
     margin-top: 12px; font-size: 14px; text-align: center;
@@ -92,7 +104,7 @@
 <body>
 <div class="container">
   <h1>📄 EBRO 表单提取器</h1>
-  <p class="subtitle">上传表单图片，自动提取内容并生成 JSON</p>
+  <p class="subtitle">上传表单图片，自动提取内容并导出 Excel</p>
 
   <!-- API Key 输入 -->
   <div class="card api-section">
@@ -117,15 +129,17 @@
     <div class="status" id="status"></div>
   </div>
 
-  <!-- JSON 结果 -->
+  <!-- 结果 -->
   <div class="card json-section" id="jsonSection">
     <div class="json-header">
       <h2>✅ 提取结果</h2>
-      <button class="btn btn-secondary" id="downloadBtn" style="width: auto; margin: 0;">
-        ⬇️ 下载 JSON
-      </button>
     </div>
     <pre id="jsonOutput"></pre>
+
+    <div class="button-row">
+      <button class="btn btn-excel" id="downloadExcelBtn">📊 下载 Excel</button>
+      <button class="btn btn-json" id="downloadJsonBtn">⬇️ 下载 JSON</button>
+    </div>
   </div>
 </div>
 
@@ -140,12 +154,13 @@
   const statusEl = document.getElementById('status');
   const jsonSection = document.getElementById('jsonSection');
   const jsonOutput = document.getElementById('jsonOutput');
-  const downloadBtn = document.getElementById('downloadBtn');
+  const downloadExcelBtn = document.getElementById('downloadExcelBtn');
+  const downloadJsonBtn = document.getElementById('downloadJsonBtn');
 
   let currentFile = null;
   let currentJson = null;
 
-  // 恢复已保存的 API Key
+  // 恢复 API Key
   const savedKey = localStorage.getItem(API_KEY_STORAGE);
   if (savedKey) apiKeyInput.value = savedKey;
 
@@ -154,10 +169,7 @@
     updateButtonState();
   });
 
-  // 点击上传
   uploadArea.addEventListener('click', () => fileInput.click());
-
-  // 拖拽上传
   uploadArea.addEventListener('dragover', (e) => {
     e.preventDefault();
     uploadArea.classList.add('dragover');
@@ -200,7 +212,6 @@
     statusEl.className = 'status ' + type;
   }
 
-  // 提取按钮
   extractBtn.addEventListener('click', async () => {
     if (!currentFile || !apiKeyInput.value.trim()) return;
 
@@ -209,7 +220,6 @@
     jsonSection.style.display = 'none';
 
     try {
-      // 读取图片为 base64
       const base64 = await fileToBase64(currentFile);
       const mimeType = currentFile.type;
 
@@ -269,10 +279,8 @@
 
       const data = await response.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
       if (!text) throw new Error('Gemini 未返回有效内容');
 
-      // 清理并解析 JSON
       let cleaned = text.trim()
         .replace(/^```json\s*/i, '')
         .replace(/^```\s*/i, '')
@@ -292,20 +300,15 @@
     }
   });
 
-  // 文件转 base64
   function fileToBase64(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result.split(',')[1];
-        resolve(base64);
-      };
+      reader.onload = () => resolve(reader.result.split(',')[1]);
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   }
 
-  // JSON 语法高亮
   function syntaxHighlight(obj) {
     let json = JSON.stringify(obj, null, 2);
     json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -323,8 +326,56 @@
     );
   }
 
-  // 下载 JSON 文件
-  downloadBtn.addEventListener('click', () => {
+  // ============ 核心新增：JSON 转 Excel ============
+  function jsonToWorkbookRows(obj) {
+    /**
+     * 把嵌套 JSON 拍平成两列：【字段路径】+【值】
+     * 这样结构清晰，也方便后续导入数据库。
+     */
+    const rows = [['字段', '值']];
+
+    function walk(node, path) {
+      if (node === null || node === undefined) {
+        rows.push([path, '']);
+        return;
+      }
+      if (typeof node === 'object' && !Array.isArray(node)) {
+        for (const key of Object.keys(node)) {
+          const newPath = path ? `${path}.${key}` : key;
+          walk(node[key], newPath);
+        }
+      } else if (Array.isArray(node)) {
+        node.forEach((item, i) => walk(item, `${path}[${i}]`));
+      } else {
+        rows.push([path, node]);
+      }
+    }
+
+    walk(obj, '');
+    return rows;
+  }
+
+  // 下载 Excel
+  downloadExcelBtn.addEventListener('click', () => {
+    if (!currentJson) return;
+
+    const rows = jsonToWorkbookRows(currentJson);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // 设置列宽
+    ws['!cols'] = [{ wch: 40 }, { wch: 50 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'EBRO提取结果');
+
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    XLSX.writeFile(wb, `ebro-extract-${timestamp}.xlsx`);
+
+    showStatus('📊 Excel 已下载', 'success');
+  });
+
+  // 下载 JSON（保留原功能）
+  downloadJsonBtn.addEventListener('click', () => {
     if (!currentJson) return;
     const blob = new Blob([JSON.stringify(currentJson, null, 2)], {
       type: 'application/json'
@@ -336,6 +387,7 @@
     a.download = `ebro-extract-${timestamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    showStatus('⬇️ JSON 已下载', 'success');
   });
 </script>
 </body>
