@@ -14,7 +14,6 @@
     padding: 24px;
     color: #1a1a1a;
   }
-  /* Wider container */
   .container { max-width: 1600px; margin: 0 auto; }
   h1 { font-size: 24px; margin-bottom: 8px; }
   .subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
@@ -276,29 +275,31 @@
     background: rgba(0,0,0,0.55);
     z-index: 1000;
     padding: 24px;
-    overflow-y: auto;
   }
   .modal-overlay.open {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
   }
   .modal {
     background: #fff;
     border-radius: 12px;
     width: 100%;
-    max-width: 900px;
+    max-width: 1400px;
+    height: 90vh;
     box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    margin: auto;
   }
   .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 20px;
+    padding: 14px 20px;
     border-bottom: 1px solid #eee;
     background: #f8f9fa;
+    flex-shrink: 0;
   }
   .modal-header h3 { font-size: 16px; }
   .modal-header .file-label {
@@ -319,32 +320,98 @@
   }
   .modal-close:hover { background: #eee; color: #333; }
 
+  /* Body: two independent scroll areas */
   .modal-body {
-    padding: 20px;
-    max-height: 65vh;
-    overflow-y: auto;
     display: flex;
-    gap: 20px;
+    flex: 1;
+    min-height: 0; /* essential for flex children to scroll */
+    overflow: hidden;
+  }
+
+  /* ---- Left: image pane ---- */
+  .image-pane {
+    flex: 0 0 50%;
+    max-width: 50%;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #eee;
+    background: #f8f9fa;
+    min-width: 0;
+  }
+  .image-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e5e5e5;
+    background: #fff;
+    flex-shrink: 0;
     flex-wrap: wrap;
   }
-  .modal-image {
-    flex: 0 0 340px;
-    max-width: 340px;
+  .image-toolbar button {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    color: #333;
+    min-width: 34px;
   }
-  .modal-image img {
-    width: 100%;
-    border-radius: 8px;
-    border: 1px solid #eee;
-  }
-  .modal-image .img-hint {
+  .image-toolbar button:hover { background: #f0f7ff; border-color: #4a90e2; }
+  .image-toolbar .zoom-label {
     font-size: 12px;
-    color: #888;
-    margin-top: 8px;
+    color: #666;
+    font-family: ui-monospace, monospace;
+    min-width: 46px;
     text-align: center;
   }
-  .modal-fields {
+  .image-toolbar .spacer { flex: 1; }
+  .image-toolbar .toolbar-hint {
+    font-size: 11px;
+    color: #999;
+  }
+
+  .image-scroll {
     flex: 1;
-    min-width: 280px;
+    overflow: auto; /* independent scroll */
+    padding: 16px;
+    text-align: center;
+    background:
+      repeating-conic-gradient(#eaeaea 0% 25%, #f5f5f5 0% 50%) 50% / 20px 20px;
+  }
+  .image-scroll img {
+    display: block;
+    margin: 0 auto;
+    transform-origin: top center;
+    transition: transform 0.1s ease-out;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    background: #fff;
+    cursor: grab;
+    user-select: none;
+  }
+  .image-scroll img.dragging { cursor: grabbing; transition: none; }
+
+  /* ---- Right: fields pane ---- */
+  .fields-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .fields-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid #e5e5e5;
+    background: #fff;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: #666;
+  }
+  .fields-scroll {
+    flex: 1;
+    overflow-y: auto; /* independent scroll */
+    padding: 16px 20px;
   }
   .edit-field {
     margin-bottom: 14px;
@@ -386,7 +453,8 @@
     word-break: break-all;
   }
   .edit-field.changed input,
-  .edit-field.changed textarea {
+  .edit-field.changed textarea,
+  .edit-field.changed select {
     border-color: #217346;
     background: #f0f9f4;
   }
@@ -411,10 +479,11 @@
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    padding: 14px 20px;
+    padding: 12px 20px;
     border-top: 1px solid #eee;
     background: #fafafa;
     flex-wrap: wrap;
+    flex-shrink: 0;
   }
   .modal-footer .left { display: flex; gap: 8px; flex-wrap: wrap; }
   .modal-footer .right { display: flex; gap: 8px; }
@@ -426,8 +495,6 @@
     cursor: pointer;
     transition: background 0.2s;
   }
-  .btn-modal-primary { background: #4a90e2; color: #fff; }
-  .btn-modal-primary:hover { background: #357abd; }
   .btn-modal-save { background: #217346; color: #fff; }
   .btn-modal-save:hover { background: #1a5c38; }
   .btn-modal-cancel { background: #e9ecef; color: #333; }
@@ -435,8 +502,15 @@
   .btn-modal-reset { background: #f0ad4e; color: #fff; }
   .btn-modal-reset:hover { background: #ec971f; }
 
-  @media (max-width: 700px) {
-    .modal-image { flex: 0 0 100%; max-width: 100%; }
+  @media (max-width: 900px) {
+    .modal-body { flex-direction: column; }
+    .image-pane {
+      flex: 0 0 45%;
+      max-width: 100%;
+      border-right: none;
+      border-bottom: 1px solid #eee;
+    }
+    .fields-pane { flex: 1; }
   }
 </style>
 </head>
@@ -526,11 +600,32 @@
     </div>
 
     <div class="modal-body">
-      <div class="modal-image">
-        <img id="modalImage" alt="Form preview" />
-        <div class="img-hint">Reference image — read the original form side by side</div>
+      <!-- LEFT: image pane with own scroll + zoom -->
+      <div class="image-pane">
+        <div class="image-toolbar">
+          <button id="zoomOutBtn" title="Zoom out">−</button>
+          <span class="zoom-label" id="zoomLabel">100%</span>
+          <button id="zoomInBtn" title="Zoom in">+</button>
+          <button id="zoomResetBtn" title="Reset zoom">1:1</button>
+          <button id="zoomFitBtn" title="Fit to width">Fit W</button>
+          <button id="zoomFitHBtn" title="Fit to height">Fit H</button>
+          <div class="spacer"></div>
+          <span class="toolbar-hint">Drag image to pan · Ctrl+wheel to zoom</span>
+        </div>
+        <div class="image-scroll" id="imageScroll">
+          <img id="modalImage" alt="Form preview" draggable="false" />
+        </div>
       </div>
-      <div class="modal-fields" id="modalFields"></div>
+
+      <!-- RIGHT: fields pane with own scroll -->
+      <div class="fields-pane">
+        <div class="fields-header">
+          <span>Edit extracted fields — changes are saved only when you click <b>Save changes</b>.</span>
+        </div>
+        <div class="fields-scroll" id="fieldsScroll">
+          <div class="modal-fields" id="modalFields"></div>
+        </div>
+      </div>
     </div>
 
     <div class="modal-footer">
@@ -580,14 +675,28 @@
   const modalCancelBtn = document.getElementById('modalCancelBtn');
   const modalSaveBtn = document.getElementById('modalSaveBtn');
   const modalResetBtn = document.getElementById('modalResetBtn');
+  const imageScroll = document.getElementById('imageScroll');
+  const zoomLabel = document.getElementById('zoomLabel');
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
+  const zoomResetBtn = document.getElementById('zoomResetBtn');
+  const zoomFitBtn = document.getElementById('zoomFitBtn');
+  const zoomFitHBtn = document.getElementById('zoomFitHBtn');
 
   let queue = [];
   let isRunning = false;
   let idCounter = 0;
 
-  // Modal state
   let editingTaskId = null;
   let editingDraft = null;
+
+  // Zoom state
+  const zoomState = {
+    scale: 1,          // 1 = natural size of the loaded image
+    naturalW: 0,
+    naturalH: 0,
+    fitMode: null,     // 'width' | 'height' | null
+  };
 
   const savedKey = localStorage.getItem(API_KEY_STORAGE);
   if (savedKey) apiKeyInput.value = savedKey;
@@ -706,9 +815,9 @@
         file,
         previewUrl: null,
         status: 'waiting',
-        json: null,          // current (possibly edited) values
-        originalJson: null,  // AI values as returned
-        edited: false,       // has the user manually edited this row?
+        json: null,
+        originalJson: null,
+        edited: false,
         error: null,
         resizedBlob: null,
         resizedDataUrl: null,
@@ -848,72 +957,27 @@
   // ============================================================
   const FIELD_SCHEMA = {
     header: {
-      company: {
-        type: 'string',
-        description: 'Top-left header inside a white box labeled "EBRO", usually reads "EBRO FACTORY". Located at the very top-left of the form.'
-      },
-      document_type: {
-        type: 'string',
-        description: 'The large title printed in the green band near the top, usually "CONTROL CALIDAD". Located below the EBRO logo.'
-      },
-      red_number: {
-        type: 'string',
-        description: 'The large red printed number in the white box on the right side of the green band, e.g. "173432". Located top-right, below the EBRO header.'
-      }
+      company: { type: 'string', description: 'Top-left header inside a white box labeled "EBRO", usually reads "EBRO FACTORY". Located at the very top-left of the form.' },
+      document_type: { type: 'string', description: 'The large title printed in the green band near the top, usually "CONTROL CALIDAD". Located below the EBRO logo.' },
+      red_number: { type: 'string', description: 'The large red printed number in the white box on the right side of the green band, e.g. "173432". Located top-right, below the EBRO header.' }
     },
     section_1: {
-      codigo_conjunto: {
-        type: 'string',
-        description: 'The handwritten value inside the box labeled "CÓDIGO CONJUNTO". Usually a long alphanumeric code starting with "4", e.g. "40301YS92 AAAG4". This label is in the first row of the form body, directly under the green header band.'
-      },
-      codigo_componente: {
-        type: 'string',
-        description: 'The handwritten value inside the box labeled "CÓDIGO COMPONENTE". Usually contains "/" separators, e.g. "Pilar B/Sup/Der". This label is directly BELOW "CÓDIGO CONJUNTO".'
-      },
-      codigo_rechaz: {
-        type: 'string',
-        description: 'The handwritten value inside the small box labeled "CÓDIGO RECHAZ". Usually a short numeric code, e.g. "2216". Located on the LEFT side, below "CÓDIGO COMPONENTE".'
-      },
-      cantidad: {
-        type: 'string',
-        description: 'The handwritten value in the box labeled "CANTIDAD". Usually a single small number, e.g. "2". Located on the RIGHT side, on the same row as "CÓDIGO RECHAZ".'
-      },
-      origen_area_zona: {
-        type: 'string',
-        description: 'The handwritten value in the "ORIGEN" box under the sub-labels "ÁREA" and "ZONA". Usually a short code like "n 1 5 2". Located on the left side, on the same row as "DESTINO".'
-      }
+      codigo_conjunto: { type: 'string', description: 'The handwritten value inside the box labeled "CÓDIGO CONJUNTO". Usually a long alphanumeric code starting with "4", e.g. "40301YS92 AAAG4". This label is in the first row of the form body, directly under the green header band.' },
+      codigo_componente: { type: 'string', description: 'The handwritten value inside the box labeled "CÓDIGO COMPONENTE". Usually contains "/" separators, e.g. "Pilar B/Sup/Der". This label is directly BELOW "CÓDIGO CONJUNTO".' },
+      codigo_rechaz: { type: 'string', description: 'The handwritten value inside the small box labeled "CÓDIGO RECHAZ". Usually a short numeric code, e.g. "2216". Located on the LEFT side, below "CÓDIGO COMPONENTE".' },
+      cantidad: { type: 'string', description: 'The handwritten value in the box labeled "CANTIDAD". Usually a single small number, e.g. "2". Located on the RIGHT side, on the same row as "CÓDIGO RECHAZ".' },
+      origen_area_zona: { type: 'string', description: 'The handwritten value in the "ORIGEN" box under the sub-labels "ÁREA" and "ZONA". Usually a short code like "n 1 5 2". Located on the left side, on the same row as "DESTINO".' }
     },
     section_2: {
-      motivo_rechace: {
-        type: 'string',
-        description: 'The rejecting code in the box labeled "MOTIVO RECHACE". Normally 4 digits, but may contain a mix of numbers and letters (e.g. "2216", "2216D", "A216"). It is NOT a date and NOT an operator ID. Located in the LOWER HALF of the form, in the second numbered section.'
-      },
-      fecha: {
-        type: 'string',
-        description: 'The date when the record is registered, written in the box labeled "FECHA". Format is usually "DD/MM/YY" or "DD/MM/YYYY", e.g. "22/4/26". It must look like a date. Located at the BOTTOM-LEFT of the form, in the second numbered section.'
-      },
-      observaciones: {
-        type: 'string',
-        description: 'The comments describing the issue, handwritten inside the box labeled "OBSERVACIONES". Normally a short text string (a word or phrase in Spanish), e.g. "Rápido", "Rayado", "Golpe". It is NOT a date, NOT a numeric code, NOT an operator ID. Located at the BOTTOM-CENTER of the form.'
-      },
-      operario: {
-        type: 'string',
-        description: 'The operator ID handwritten inside the box labeled "OPERARIO". Normally 3 or 4 digits (e.g. "897", "1234"). It is a numeric ID, NOT a date, NOT a rejecting code. Located at the BOTTOM-LEFT, in the box directly below "FECHA".'
-      }
+      motivo_rechace: { type: 'string', description: 'The rejecting code in the box labeled "MOTIVO RECHACE". Normally 4 digits, but may contain a mix of numbers and letters (e.g. "2216", "2216D", "A216"). It is NOT a date and NOT an operator ID. Located in the LOWER HALF of the form, in the second numbered section.' },
+      fecha: { type: 'string', description: 'The date when the record is registered, written in the box labeled "FECHA". Format is usually "DD/MM/YY" or "DD/MM/YYYY", e.g. "22/4/26". It must look like a date. Located at the BOTTOM-LEFT of the form, in the second numbered section.' },
+      observaciones: { type: 'string', description: 'The comments describing the issue, handwritten inside the box labeled "OBSERVACIONES". Normally a short text string (a word or phrase in Spanish), e.g. "Rápido", "Rayado", "Golpe". It is NOT a date, NOT a numeric code, NOT an operator ID. Located at the BOTTOM-CENTER of the form.' },
+      operario: { type: 'string', description: 'The operator ID handwritten inside the box labeled "OPERARIO". Normally 3 or 4 digits (e.g. "897", "1234"). It is a numeric ID, NOT a date, NOT a rejecting code. Located at the BOTTOM-LEFT, in the box directly below "FECHA".' }
     },
     signatures: {
-      inspector: {
-        type: 'string',
-        description: 'Whether the "INSPECTOR" box at the bottom-left has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.'
-      },
-      visto_bueno_calidad: {
-        type: 'string',
-        description: 'Whether the "Vº Bº C. CALIDAD" box at the bottom-center has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.'
-      },
-      encargado_linea: {
-        type: 'string',
-        description: 'Whether the "ENCARGADO LÍNEA" box at the bottom-right has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.'
-      }
+      inspector: { type: 'string', description: 'Whether the "INSPECTOR" box at the bottom-left has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.' },
+      visto_bueno_calidad: { type: 'string', description: 'Whether the "Vº Bº C. CALIDAD" box at the bottom-center has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.' },
+      encargado_linea: { type: 'string', description: 'Whether the "ENCARGADO LÍNEA" box at the bottom-right has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.' }
     }
   };
 
@@ -961,50 +1025,17 @@
   //  Format rules
   // ============================================================
   const FORMAT_RULES = {
-    'section_1.codigo_conjunto': {
-      test: v => /^4[0-9A-Z\s\/\-]{6,}$/i.test(v.trim()),
-      hint: 'Expected a long code starting with "4"'
-    },
-    'section_1.codigo_componente': {
-      test: v => /[A-Za-z]/.test(v) && v.trim().length >= 4,
-      hint: 'Expected a text description like "Pilar B/Sup/Der"'
-    },
-    'section_1.codigo_rechaz': {
-      test: v => /^[0-9]{3,5}[A-Z]?$/i.test(v.trim()),
-      hint: 'Expected a short numeric code like "2216"'
-    },
-    'section_1.cantidad': {
-      test: v => /^[0-9]{1,3}$/.test(v.trim()),
-      hint: 'Expected a small number like "2"'
-    },
-    'section_2.motivo_rechace': {
-      test: v => /^[0-9A-Z]{3,5}$/i.test(v.replace(/\s+/g, '')),
-      hint: 'Expected a 3-5 character rejecting code (digits and/or letters)'
-    },
-    'section_2.fecha': {
-      test: v => /^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}$/.test(v.trim()),
-      hint: 'Expected a date like "22/4/26"'
-    },
-    'section_2.operario': {
-      test: v => /^[0-9]{3,4}$/.test(v.trim()),
-      hint: 'Expected a 3 or 4 digit operator ID'
-    },
-    'section_2.observaciones': {
-      test: v => /[A-Za-zÀ-ÿ]/.test(v) && !/^\d+$/.test(v.trim()),
-      hint: 'Expected a text comment, not a number'
-    },
-    'signatures.inspector': {
-      test: v => /^(Signed|Not Signed)$/i.test(v.trim()),
-      hint: 'Expected "Signed" or "Not Signed"'
-    },
-    'signatures.visto_bueno_calidad': {
-      test: v => /^(Signed|Not Signed)$/i.test(v.trim()),
-      hint: 'Expected "Signed" or "Not Signed"'
-    },
-    'signatures.encargado_linea': {
-      test: v => /^(Signed|Not Signed)$/i.test(v.trim()),
-      hint: 'Expected "Signed" or "Not Signed"'
-    }
+    'section_1.codigo_conjunto': { test: v => /^4[0-9A-Z\s\/\-]{6,}$/i.test(v.trim()), hint: 'Expected a long code starting with "4"' },
+    'section_1.codigo_componente': { test: v => /[A-Za-z]/.test(v) && v.trim().length >= 4, hint: 'Expected a text description like "Pilar B/Sup/Der"' },
+    'section_1.codigo_rechaz': { test: v => /^[0-9]{3,5}[A-Z]?$/i.test(v.trim()), hint: 'Expected a short numeric code like "2216"' },
+    'section_1.cantidad': { test: v => /^[0-9]{1,3}$/.test(v.trim()), hint: 'Expected a small number like "2"' },
+    'section_2.motivo_rechace': { test: v => /^[0-9A-Z]{3,5}$/i.test(v.replace(/\s+/g, '')), hint: 'Expected a 3-5 character rejecting code (digits and/or letters)' },
+    'section_2.fecha': { test: v => /^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}$/.test(v.trim()), hint: 'Expected a date like "22/4/26"' },
+    'section_2.operario': { test: v => /^[0-9]{3,4}$/.test(v.trim()), hint: 'Expected a 3 or 4 digit operator ID' },
+    'section_2.observaciones': { test: v => /[A-Za-zÀ-ÿ]/.test(v) && !/^\d+$/.test(v.trim()), hint: 'Expected a text comment, not a number' },
+    'signatures.inspector': { test: v => /^(Signed|Not Signed)$/i.test(v.trim()), hint: 'Expected "Signed" or "Not Signed"' },
+    'signatures.visto_bueno_calidad': { test: v => /^(Signed|Not Signed)$/i.test(v.trim()), hint: 'Expected "Signed" or "Not Signed"' },
+    'signatures.encargado_linea': { test: v => /^(Signed|Not Signed)$/i.test(v.trim()), hint: 'Expected "Signed" or "Not Signed"' }
   };
 
   function checkFormat(path, value) {
@@ -1012,11 +1043,7 @@
     if (!rule) return 'ok';
     if (value === null || value === undefined || String(value).trim() === '') return 'missing';
     const s = String(value).trim();
-    try {
-      return rule.test(s) ? 'ok' : 'format-mismatch';
-    } catch (e) {
-      return 'ok';
-    }
+    try { return rule.test(s) ? 'ok' : 'format-mismatch'; } catch (e) { return 'ok'; }
   }
 
   // ============================================================
@@ -1108,13 +1135,9 @@
   async function retryOne(id) {
     if (isRunning) return;
     const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-      showStatus('Please enter your API Key first.', 'error');
-      return;
-    }
+    if (!apiKey) { showStatus('Please enter your API Key first.', 'error'); return; }
     const task = queue.find(t => t.id === id);
-    if (!task) return;
-    if (task.status !== 'error') return;
+    if (!task || task.status !== 'error') return;
 
     isRunning = true;
     task.status = 'processing';
@@ -1163,9 +1186,7 @@
       return;
     }
     queue.forEach(t => {
-      if (t.previewUrl && t.previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(t.previewUrl);
-      }
+      if (t.previewUrl && t.previewUrl.startsWith('blob:')) URL.revokeObjectURL(t.previewUrl);
     });
     queue = [];
     renderQueue();
@@ -1199,10 +1220,8 @@
       } catch (err) {
         lastErr = err;
         const msg = String(err.message || '').toLowerCase();
-        const isTransient =
-          err.transient === true ||
+        const isTransient = err.transient === true ||
           /high demand|overloaded|temporarily|try again|503|502|504|429/.test(msg);
-
         if (!isTransient || attempt === MAX_ATTEMPTS) throw err;
 
         const waitMs = delays[attempt - 1] || 10000;
@@ -1282,7 +1301,6 @@
 
     parsed = unwrapSchemaEcho(parsed);
     parsed = normalizeSignatures(parsed);
-
     return parsed;
   }
 
@@ -1298,21 +1316,15 @@
   function normalizeSignatures(obj) {
     if (!obj || typeof obj !== 'object') return obj;
     if (!obj.signatures || typeof obj.signatures !== 'object') return obj;
-
     const sig = obj.signatures;
     ['inspector', 'visto_bueno_calidad', 'encargado_linea'].forEach(key => {
       const raw = sig[key];
       if (raw === null || raw === undefined) { sig[key] = 'Not Signed'; return; }
       const s = String(raw).trim().toLowerCase();
-      if (['signed', 'yes', 'true', 'signature', 'signed.'].includes(s)) {
-        sig[key] = 'Signed';
-      } else if (['not signed', 'no', 'false', 'empty', 'unsigned'].includes(s)) {
-        sig[key] = 'Not Signed';
-      } else if (/sign/i.test(s) && !/not|no |empty|blank/i.test(s)) {
-        sig[key] = 'Signed';
-      } else {
-        sig[key] = 'Not Signed';
-      }
+      if (['signed', 'yes', 'true', 'signature', 'signed.'].includes(s)) sig[key] = 'Signed';
+      else if (['not signed', 'no', 'false', 'empty', 'unsigned'].includes(s)) sig[key] = 'Not Signed';
+      else if (/sign/i.test(s) && !/not|no |empty|blank/i.test(s)) sig[key] = 'Signed';
+      else sig[key] = 'Not Signed';
     });
     return obj;
   }
@@ -1332,9 +1344,7 @@
       if (node === null || node === undefined) {
         flat[path] = '';
       } else if (typeof node === 'object' && !Array.isArray(node)) {
-        for (const key of Object.keys(node)) {
-          walk(node[key], path ? `${path}.${key}` : key);
-        }
+        for (const key of Object.keys(node)) walk(node[key], path ? `${path}.${key}` : key);
       } else if (Array.isArray(node)) {
         node.forEach((item, i) => walk(item, `${path}[${i}]`));
       } else {
@@ -1355,9 +1365,6 @@
     return 'ok';
   }
 
-  // ============================================================
-  //  Result table
-  // ============================================================
   function renderResultTable(tasks) {
     const rows = tasks.map(t => ({
       _taskId: t.id,
@@ -1388,7 +1395,6 @@
     rows.forEach((r, i) => {
       const tr = document.createElement('tr');
       const cells = [];
-
       cells.push(`<td class="row-num">${i + 1}</td>`);
 
       headers.forEach(h => {
@@ -1406,11 +1412,9 @@
           }
         }
 
-        // If edited and the value is now OK, mark as edited
         if (r._edited && status === 'ok') status = 'edited';
 
-        let cls = '';
-        let badge = '';
+        let cls = '', badge = '';
 
         if (status === 'missing') {
           missingCount++;
@@ -1434,14 +1438,12 @@
         }
 
         const display = (raw === null || raw === undefined || String(raw).trim() === '')
-          ? '—'
-          : String(raw);
+          ? '—' : String(raw);
 
         const extraClass = h === '_file' ? ' file-cell' : '';
         cells.push(`<td class="${cls}${extraClass}" title="${escapeHtml(hint)}">${escapeHtml(display)}${badge}</td>`);
       });
 
-      // Action cell
       const editBtnCls = r._edited ? 'btn-edit-row edited' : 'btn-edit-row';
       const editBtnText = r._edited ? '✏️ Edited' : '✏️ Edit';
       cells.push(`<td class="action-cell"><button class="${editBtnCls}" data-edit-id="${r._taskId}">${editBtnText}</button></td>`);
@@ -1454,7 +1456,6 @@
     resultTable.appendChild(thead);
     resultTable.appendChild(tbody);
 
-    // Attach edit listeners
     resultTable.querySelectorAll('[data-edit-id]').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = parseInt(btn.dataset.editId, 10);
@@ -1482,6 +1483,91 @@
   }
 
   // ============================================================
+  //  Zoom controls
+  // ============================================================
+  function applyZoom() {
+    const s = zoomState.scale;
+    modalImage.style.transform = `scale(${s})`;
+    // Keep transform-origin at top-center so panning feels natural
+    modalImage.style.transformOrigin = 'top center';
+    zoomLabel.textContent = `${Math.round(s * 100)}%`;
+  }
+
+  function setZoom(newScale, fitMode = null) {
+    const clamped = Math.max(0.1, Math.min(8, newScale));
+    zoomState.scale = clamped;
+    zoomState.fitMode = fitMode;
+    applyZoom();
+  }
+
+  function zoomIn() {
+    setZoom(zoomState.scale * 1.25);
+  }
+  function zoomOut() {
+    setZoom(zoomState.scale / 1.25);
+  }
+  function zoomReset() {
+    setZoom(1);
+  }
+  function zoomFitWidth() {
+    if (!zoomState.naturalW) return;
+    const containerW = imageScroll.clientWidth - 32; // padding
+    setZoom(containerW / zoomState.naturalW, 'width');
+  }
+  function zoomFitHeight() {
+    if (!zoomState.naturalH) return;
+    const containerH = imageScroll.clientHeight - 32;
+    setZoom(containerH / zoomState.naturalH, 'height');
+  }
+
+  zoomInBtn.addEventListener('click', zoomIn);
+  zoomOutBtn.addEventListener('click', zoomOut);
+  zoomResetBtn.addEventListener('click', zoomReset);
+  zoomFitBtn.addEventListener('click', zoomFitWidth);
+  zoomFitHBtn.addEventListener('click', zoomFitHeight);
+
+  // Ctrl + wheel to zoom; plain wheel scrolls the image pane as usual
+  imageScroll.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = -e.deltaY;
+      if (delta > 0) zoomIn();
+      else zoomOut();
+    }
+  }, { passive: false });
+
+  // Drag to pan
+  let isPanning = false;
+  let panStartX = 0, panStartY = 0;
+  let panScrollLeft = 0, panScrollTop = 0;
+
+  modalImage.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panScrollLeft = imageScroll.scrollLeft;
+    panScrollTop = imageScroll.scrollTop;
+    modalImage.classList.add('dragging');
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    const dx = e.clientX - panStartX;
+    const dy = e.clientY - panStartY;
+    imageScroll.scrollLeft = panScrollLeft - dx;
+    imageScroll.scrollTop = panScrollTop - dy;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isPanning) {
+      isPanning = false;
+      modalImage.classList.remove('dragging');
+    }
+  });
+
+  // ============================================================
   //  Edit Modal
   // ============================================================
   function openEditModal(taskId) {
@@ -1493,6 +1579,21 @@
 
     modalTitle.textContent = `Edit: ${task.file.name}`;
     modalFileLabel.textContent = buildFilePath(task.file);
+
+    // Reset zoom state; image natural size will be known on load
+    zoomState.scale = 1;
+    zoomState.naturalW = 0;
+    zoomState.naturalH = 0;
+    zoomState.fitMode = null;
+    zoomLabel.textContent = '100%';
+
+    modalImage.onload = () => {
+      zoomState.naturalW = modalImage.naturalWidth;
+      zoomState.naturalH = modalImage.naturalHeight;
+      applyZoom();
+      // Auto-fit width on open for a comfortable starting view
+      setTimeout(zoomFitWidth, 50);
+    };
     modalImage.src = task.previewUrl || task.resizedDataUrl || '';
 
     renderEditFields(task);
@@ -1505,10 +1606,13 @@
     document.body.style.overflow = '';
     editingTaskId = null;
     editingDraft = null;
+    zoomState.scale = 1;
+    zoomState.naturalW = 0;
+    zoomState.naturalH = 0;
+    zoomState.fitMode = null;
   }
 
   function getFieldHint(path) {
-    // Build a short hint from the format rule
     const rule = FORMAT_RULES[path];
     return rule ? rule.hint : '';
   }
@@ -1564,7 +1668,6 @@
           });
           fieldEl.classList.add('sig-field');
         } else {
-          // Long text -> textarea
           const strVal = currentValue === null || currentValue === undefined ? '' : String(currentValue);
           if (strVal.length > 60) {
             input = document.createElement('textarea');
@@ -1582,7 +1685,6 @@
         input.addEventListener('change', onEditInput);
         fieldEl.appendChild(input);
 
-        // Show original AI value below if it differs from current
         if (originalValue !== undefined && originalValue !== null &&
             String(originalValue) !== String(currentValue)) {
           const orig = document.createElement('div');
@@ -1591,7 +1693,6 @@
           fieldEl.appendChild(orig);
         }
 
-        // Mark as changed if different from original
         if (String(originalValue ?? '') !== String(currentValue ?? '')) {
           fieldEl.classList.add('changed');
         }
@@ -1616,7 +1717,6 @@
 
     editingDraft[section][fieldKey] = newVal;
 
-    // Update "changed" styling
     const fieldEl = input.closest('.edit-field');
     const task = queue.find(t => t.id === editingTaskId);
     const orig = task?.originalJson?.[section]?.[fieldKey];
@@ -1629,7 +1729,6 @@
       fieldEl.classList.remove('changed');
     }
 
-    // Update original value note
     const note = fieldEl.querySelector('.original-value');
     if (note) {
       if (origStr !== newStr) {
@@ -1650,7 +1749,6 @@
     const task = queue.find(t => t.id === editingTaskId);
     if (!task) return;
 
-    // Check if anything actually changed vs. the AI original
     const orig = JSON.stringify(task.originalJson || {});
     const curr = JSON.stringify(editingDraft || {});
     task.json = editingDraft;
