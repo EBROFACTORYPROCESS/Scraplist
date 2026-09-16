@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EBRO 表单提取器</title>
-<!-- SheetJS 用于生成 Excel -->
+<title>EBRO 表单提取器 · 批量版</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -15,7 +14,7 @@
     padding: 24px;
     color: #1a1a1a;
   }
-  .container { max-width: 900px; margin: 0 auto; }
+  .container { max-width: 1000px; margin: 0 auto; }
   h1 { font-size: 24px; margin-bottom: 8px; }
   .subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
 
@@ -48,11 +47,6 @@
   .upload-area p { color: #666; font-size: 14px; }
   .upload-area .icon { font-size: 40px; margin-bottom: 8px; }
 
-  #preview {
-    max-width: 100%; max-height: 400px; border-radius: 8px;
-    margin-top: 16px; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  }
-
   .btn {
     background: #4a90e2; color: #fff; border: none;
     padding: 12px 24px; border-radius: 8px; font-size: 15px;
@@ -62,15 +56,12 @@
   .btn:hover:not(:disabled) { background: #357abd; }
   .btn:disabled { background: #ccc; cursor: not-allowed; }
 
-  .btn-excel {
-    background: #217346; /* Excel 绿 */
-  }
+  .btn-excel { background: #217346; }
   .btn-excel:hover:not(:disabled) { background: #1a5c38; }
-
-  .btn-json {
-    background: #6c757d;
-  }
+  .btn-json { background: #6c757d; }
   .btn-json:hover:not(:disabled) { background: #5a6268; }
+  .btn-clear { background: #dc3545; }
+  .btn-clear:hover:not(:disabled) { background: #b02a37; }
 
   .button-row {
     display: flex; gap: 10px; margin-top: 16px;
@@ -85,16 +76,57 @@
   .status.success { color: #2e7d32; }
   .status.loading { color: #1976d2; }
 
-  .json-section { display: none; }
-  .json-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 12px;
+  /* 队列列表 */
+  .queue-list { margin-top: 20px; }
+  .queue-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: #fafafa;
+    font-size: 13px;
   }
-  .json-header h2 { font-size: 18px; }
+  .queue-item img {
+    width: 48px; height: 48px; object-fit: cover;
+    border-radius: 6px; flex-shrink: 0;
+  }
+  .queue-item .info { flex: 1; min-width: 0; }
+  .queue-item .name {
+    font-weight: 500; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .queue-item .meta { color: #888; font-size: 12px; margin-top: 2px; }
+  .queue-item .state {
+    flex-shrink: 0; font-size: 12px; padding: 4px 10px;
+    border-radius: 20px; font-weight: 500;
+  }
+  .state-waiting { background: #fff3cd; color: #856404; }
+  .state-processing { background: #cfe2ff; color: #084298; }
+  .state-success { background: #d1e7dd; color: #0f5132; }
+  .state-error { background: #f8d7da; color: #842029; }
+  .state-cancelled { background: #e2e3e5; color: #41464b; }
+
+  .progress-bar-wrap {
+    margin-top: 16px; height: 8px;
+    background: #e9ecef; border-radius: 4px; overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%; width: 0%; background: #4a90e2;
+    transition: width 0.3s;
+  }
+
+  .summary {
+    margin-top: 16px; padding: 12px;
+    background: #f0f7ff; border-radius: 8px;
+    font-size: 13px; color: #084298;
+  }
+
+  .json-section { display: none; }
   pre {
     background: #1e1e1e; color: #d4d4d4; padding: 16px;
-    border-radius: 8px; overflow-x: auto; font-size: 13px;
-    line-height: 1.6; max-height: 500px; overflow-y: auto;
+    border-radius: 8px; overflow-x: auto; font-size: 12px;
+    line-height: 1.6; max-height: 400px; overflow-y: auto;
   }
   .json-key { color: #9cdcfe; }
   .json-string { color: #ce9178; }
@@ -103,10 +135,9 @@
 </head>
 <body>
 <div class="container">
-  <h1>📄 EBRO 表单提取器</h1>
-  <p class="subtitle">上传表单图片，自动提取内容并导出 Excel</p>
+  <h1>📄 EBRO 表单提取器 · 批量版</h1>
+  <p class="subtitle">支持多张图片上传、自动限流（免费层 15 次/分钟）、汇总导出 Excel</p>
 
-  <!-- API Key 输入 -->
   <div class="card api-section">
     <label for="apiKey">Gemini API Key（仅本地保存，不会上传）</label>
     <input type="password" id="apiKey" placeholder="粘贴你的 Gemini API Key..." />
@@ -115,50 +146,64 @@
     </p>
   </div>
 
-  <!-- 上传区域 -->
   <div class="card">
     <div class="upload-area" id="uploadArea">
       <div class="icon">📤</div>
-      <p>点击选择图片，或将图片拖拽到此处</p>
-      <p style="font-size: 12px; color: #999; margin-top: 4px;">支持 JPG、PNG、WEBP</p>
+      <p>点击选择图片，或将多张图片拖拽到此处</p>
+      <p style="font-size: 12px; color: #999; margin-top: 4px;">支持 JPG、PNG、WEBP，可一次选多张</p>
     </div>
-    <input type="file" id="fileInput" accept="image/*" style="display: none;" />
-    <img id="preview" alt="预览" />
+    <input type="file" id="fileInput" accept="image/*" multiple style="display: none;" />
 
-    <button class="btn" id="extractBtn" disabled>开始提取</button>
+    <div class="button-row">
+      <button class="btn" id="extractBtn" disabled>🚀 开始批量提取</button>
+      <button class="btn btn-clear" id="clearBtn" disabled>🗑️ 清空</button>
+    </div>
     <div class="status" id="status"></div>
+
+    <div class="progress-bar-wrap" id="progressWrap" style="display: none;">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="summary" id="summary" style="display: none;"></div>
+
+    <div class="queue-list" id="queueList"></div>
   </div>
 
-  <!-- 结果 -->
   <div class="card json-section" id="jsonSection">
-    <div class="json-header">
-      <h2>✅ 提取结果</h2>
-    </div>
+    <h2 style="font-size: 18px; margin-bottom: 12px;">✅ 提取结果预览</h2>
     <pre id="jsonOutput"></pre>
 
     <div class="button-row">
-      <button class="btn btn-excel" id="downloadExcelBtn">📊 下载 Excel</button>
-      <button class="btn btn-json" id="downloadJsonBtn">⬇️ 下载 JSON</button>
+      <button class="btn btn-excel" id="downloadExcelBtn">📊 下载汇总 Excel</button>
+      <button class="btn btn-json" id="downloadJsonBtn">⬇️ 下载汇总 JSON</button>
     </div>
   </div>
 </div>
 
 <script>
   const API_KEY_STORAGE = 'gemini_api_key';
+  const MODEL = 'gemini-3.6-flash';
+  const RATE_LIMIT_PER_MIN = 15; // 免费层每分钟 15 次
 
   const apiKeyInput = document.getElementById('apiKey');
   const uploadArea = document.getElementById('uploadArea');
   const fileInput = document.getElementById('fileInput');
-  const preview = document.getElementById('preview');
   const extractBtn = document.getElementById('extractBtn');
+  const clearBtn = document.getElementById('clearBtn');
   const statusEl = document.getElementById('status');
+  const queueList = document.getElementById('queueList');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressBar = document.getElementById('progressBar');
+  const summaryEl = document.getElementById('summary');
   const jsonSection = document.getElementById('jsonSection');
   const jsonOutput = document.getElementById('jsonOutput');
   const downloadExcelBtn = document.getElementById('downloadExcelBtn');
   const downloadJsonBtn = document.getElementById('downloadJsonBtn');
 
-  let currentFile = null;
-  let currentJson = null;
+  // 队列：每个任务 { id, file, previewUrl, status, json, error }
+  let queue = [];
+  let isRunning = false;
+  let idCounter = 0;
 
   // 恢复 API Key
   const savedKey = localStorage.getItem(API_KEY_STORAGE);
@@ -169,6 +214,7 @@
     updateButtonState();
   });
 
+  // ---------- 上传交互 ----------
   uploadArea.addEventListener('click', () => fileInput.click());
   uploadArea.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -180,31 +226,40 @@
   uploadArea.addEventListener('drop', (e) => {
     e.preventDefault();
     uploadArea.classList.remove('dragover');
-    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
   });
-
   fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length) handleFile(e.target.files[0]);
+    if (e.target.files.length) {
+      addFiles(e.target.files);
+      fileInput.value = ''; // 允许重复选同一文件
+    }
   });
 
-  function handleFile(file) {
-    if (!file.type.startsWith('image/')) {
+  function addFiles(files) {
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!imageFiles.length) {
       showStatus('请选择图片文件', 'error');
       return;
     }
-    currentFile = file;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      preview.src = e.target.result;
-      preview.style.display = 'block';
-      updateButtonState();
-      showStatus('');
-    };
-    reader.readAsDataURL(file);
+    imageFiles.forEach(file => {
+      queue.push({
+        id: ++idCounter,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        status: 'waiting', // waiting | processing | success | error | cancelled
+        json: null,
+        error: null,
+      });
+    });
+    renderQueue();
+    updateButtonState();
+    showStatus(`已添加 ${imageFiles.length} 张图片，共 ${queue.length} 张`, 'success');
   }
 
   function updateButtonState() {
-    extractBtn.disabled = !currentFile || !apiKeyInput.value.trim();
+    const hasPending = queue.some(t => t.status === 'waiting');
+    extractBtn.disabled = isRunning || !hasPending || !apiKeyInput.value.trim();
+    clearBtn.disabled = isRunning || queue.length === 0;
   }
 
   function showStatus(msg, type = '') {
@@ -212,18 +267,161 @@
     statusEl.className = 'status ' + type;
   }
 
+  // ---------- 渲染队列 ----------
+  function renderQueue() {
+    queueList.innerHTML = '';
+    queue.forEach(task => {
+      const el = document.createElement('div');
+      el.className = 'queue-item';
+      el.innerHTML = `
+        <img src="${task.previewUrl}" alt="" />
+        <div class="info">
+          <div class="name">${escapeHtml(task.file.name)}</div>
+          <div class="meta">${(task.file.size / 1024).toFixed(0)} KB${task.error ? ' · ' + escapeHtml(task.error) : ''}</div>
+        </div>
+        <span class="state state-${task.status}">${statusLabel(task.status)}</span>
+      `;
+      queueList.appendChild(el);
+    });
+  }
+
+  function statusLabel(s) {
+    return {
+      waiting: '等待中',
+      processing: '处理中',
+      success: '成功',
+      error: '失败',
+      cancelled: '已取消',
+    }[s] || s;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  // ---------- 限流器 ----------
+  /**
+   * 维护最近 60 秒的请求时间戳。
+   * 发请求前如果窗口已满，就等到最老的请求过期。
+   */
+  const rateLimiter = {
+    timestamps: [],
+    async wait() {
+      const now = Date.now();
+      const windowStart = now - 60_000;
+      // 清掉 60 秒前的时间戳
+      this.timestamps = this.timestamps.filter(t => t > windowStart);
+
+      if (this.timestamps.length >= RATE_LIMIT_PER_MIN) {
+        const oldest = this.timestamps[0];
+        const waitMs = oldest + 60_000 - now + 200; // 多等 200ms 保险
+        await sleep(waitMs);
+        return this.wait(); // 递归重新检查
+      }
+
+      this.timestamps.push(Date.now());
+    }
+  };
+
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  // ---------- 主流程 ----------
   extractBtn.addEventListener('click', async () => {
-    if (!currentFile || !apiKeyInput.value.trim()) return;
+    if (isRunning) return;
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) return;
 
-    extractBtn.disabled = true;
-    showStatus('⏳ 正在调用 Gemini 提取中...', 'loading');
+    const pending = queue.filter(t => t.status === 'waiting');
+    if (!pending.length) return;
+
+    isRunning = true;
+    updateButtonState();
     jsonSection.style.display = 'none';
+    progressWrap.style.display = 'block';
+    summaryEl.style.display = 'none';
 
-    try {
-      const base64 = await fileToBase64(currentFile);
-      const mimeType = currentFile.type;
+    let done = 0;
+    let success = 0;
+    let failed = 0;
 
-      const prompt = `你是一个数据提取助手。请从这张 EBRO Factory "Control Calidad" 表单图片中提取所有信息。
+    for (const task of pending) {
+      // 检查是否被中途取消（清空）
+      if (task.status === 'cancelled') continue;
+
+      task.status = 'processing';
+      renderQueue();
+
+      try {
+        await rateLimiter.wait(); // 限流：必要时自动等待
+        const json = await extractOne(task.file, apiKey);
+        task.json = json;
+        task.status = 'success';
+        success++;
+      } catch (err) {
+        console.error(task.file.name, err);
+        task.error = err.message || '未知错误';
+        task.status = 'error';
+        failed++;
+      }
+
+      done++;
+      progressBar.style.width = `${(done / pending.length) * 100}%`;
+      renderQueue();
+      updateButtonState();
+    }
+
+    isRunning = false;
+    updateButtonState();
+
+    // 汇总显示
+    summaryEl.style.display = 'block';
+    summaryEl.innerHTML = `✅ 成功 ${success} 张 · ❌ 失败 ${failed} 张 · 共 ${pending.length} 张`;
+
+    const successTasks = queue.filter(t => t.status === 'success');
+    if (successTasks.length) {
+      jsonOutput.innerHTML = syntaxHighlight(successTasks.map(t => ({
+        _file: t.file.name,
+        ...t.json
+      })));
+      jsonSection.style.display = 'block';
+      showStatus(`🎉 完成！成功 ${success} 张，失败 ${failed} 张`, success ? 'success' : 'error');
+    } else {
+      showStatus('❌ 全部失败，请检查 API Key 或网络', 'error');
+    }
+  });
+
+  // 清空
+  clearBtn.addEventListener('click', () => {
+    if (isRunning) {
+      // 运行中：标记取消
+      queue.forEach(t => {
+        if (t.status === 'waiting') t.status = 'cancelled';
+      });
+      renderQueue();
+      updateButtonState();
+      return;
+    }
+    queue.forEach(t => URL.revokeObjectURL(t.previewUrl));
+    queue = [];
+    renderQueue();
+    progressWrap.style.display = 'none';
+    progressBar.style.width = '0%';
+    summaryEl.style.display = 'none';
+    jsonSection.style.display = 'none';
+    showStatus('');
+    updateButtonState();
+  });
+
+  // ---------- 调用 Gemini ----------
+  async function extractOne(file, apiKey) {
+    const base64 = await fileToBase64(file);
+    const mimeType = file.type;
+
+    const prompt = `你是一个数据提取助手。请从这张 EBRO Factory "Control Calidad" 表单图片中提取所有信息。
 返回一个有效的 JSON 对象，结构如下。如果字段为空或无法识别，使用 null。
 
 {
@@ -252,53 +450,45 @@
   }
 }`;
 
-      const apiKey = apiKeyInput.value.trim();
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mimeType, data: base64 } }
-            ]
-          }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            maxOutputTokens: 2000
-          }
-        })
-      });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType, data: base64 } }
+          ]
+        }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          maxOutputTokens: 2000
+        }
+      })
+    });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error?.message || `HTTP ${response.status}`);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      // 429 单独提示
+      if (response.status === 429) {
+        throw new Error('触发频率限制（429），请稍后再试');
       }
-
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error('Gemini 未返回有效内容');
-
-      let cleaned = text.trim()
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/, '');
-
-      currentJson = JSON.parse(cleaned);
-
-      jsonOutput.innerHTML = syntaxHighlight(currentJson);
-      jsonSection.style.display = 'block';
-      showStatus('✅ 提取成功！', 'success');
-
-    } catch (err) {
-      console.error(err);
-      showStatus('❌ 出错：' + err.message, 'error');
-    } finally {
-      extractBtn.disabled = false;
+      throw new Error(err.error?.message || `HTTP ${response.status}`);
     }
-  });
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error('Gemini 未返回有效内容');
+
+    let cleaned = text.trim()
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/, '');
+
+    return JSON.parse(cleaned);
+  }
 
   function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -309,6 +499,7 @@
     });
   }
 
+  // ---------- JSON 高亮 ----------
   function syntaxHighlight(obj) {
     let json = JSON.stringify(obj, null, 2);
     json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -326,65 +517,75 @@
     );
   }
 
-  // ============ 核心新增：JSON 转 Excel ============
-  function jsonToWorkbookRows(obj) {
-    /**
-     * 把嵌套 JSON 拍平成两列：【字段路径】+【值】
-     * 这样结构清晰，也方便后续导入数据库。
-     */
-    const rows = [['字段', '值']];
-
+  // ---------- 汇总 Excel ----------
+  function flattenJson(obj) {
+    const flat = {};
     function walk(node, path) {
       if (node === null || node === undefined) {
-        rows.push([path, '']);
-        return;
-      }
-      if (typeof node === 'object' && !Array.isArray(node)) {
+        flat[path] = '';
+      } else if (typeof node === 'object' && !Array.isArray(node)) {
         for (const key of Object.keys(node)) {
-          const newPath = path ? `${path}.${key}` : key;
-          walk(node[key], newPath);
+          walk(node[key], path ? `${path}.${key}` : key);
         }
       } else if (Array.isArray(node)) {
         node.forEach((item, i) => walk(item, `${path}[${i}]`));
       } else {
-        rows.push([path, node]);
+        flat[path] = node;
       }
     }
-
     walk(obj, '');
-    return rows;
+    return flat;
   }
 
-  // 下载 Excel
   downloadExcelBtn.addEventListener('click', () => {
-    if (!currentJson) return;
+    const successTasks = queue.filter(t => t.status === 'success' && t.json);
+    if (!successTasks.length) {
+      showStatus('没有可导出的成功结果', 'error');
+      return;
+    }
 
-    const rows = jsonToWorkbookRows(currentJson);
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+    // 每张表单一行：{ _file, ...flattened }
+    const rows = successTasks.map(t => ({
+      _file: t.file.name,
+      ...flattenJson(t.json)
+    }));
 
-    // 设置列宽
-    ws['!cols'] = [{ wch: 40 }, { wch: 50 }];
+    // 收集所有列（保持第一次出现顺序，_file 放最前）
+    const headerSet = new Set(['_file']);
+    rows.forEach(r => Object.keys(r).forEach(k => headerSet.add(k)));
+    const headers = Array.from(headerSet);
+
+    // 生成二维数组：表头 + 数据行
+    const aoa = [
+      headers,
+      ...rows.map(r => headers.map(h => r[h] ?? ''))
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = headers.map(h => ({ wch: h === '_file' ? 30 : 22 }));
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'EBRO提取结果');
+    XLSX.utils.book_append_sheet(wb, ws, 'EBRO汇总');
 
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    XLSX.writeFile(wb, `ebro-extract-${timestamp}.xlsx`);
+    XLSX.writeFile(wb, `ebro-batch-${timestamp}.xlsx`);
 
-    showStatus('📊 Excel 已下载', 'success');
+    showStatus(`📊 已导出 ${rows.length} 行`, 'success');
   });
 
-  // 下载 JSON（保留原功能）
   downloadJsonBtn.addEventListener('click', () => {
-    if (!currentJson) return;
-    const blob = new Blob([JSON.stringify(currentJson, null, 2)], {
-      type: 'application/json'
-    });
+    const successTasks = queue.filter(t => t.status === 'success' && t.json);
+    if (!successTasks.length) {
+      showStatus('没有可导出的成功结果', 'error');
+      return;
+    }
+    const out = successTasks.map(t => ({ _file: t.file.name, ...t.json }));
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     a.href = url;
-    a.download = `ebro-extract-${timestamp}.json`;
+    a.download = `ebro-batch-${timestamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
     showStatus('⬇️ JSON 已下载', 'success');
