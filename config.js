@@ -4,6 +4,7 @@
 
 const PLATFORM_STORAGE = 'ai_platform';
 const API_KEY_STORAGE_PREFIX = 'api_key_';
+const GEMINI_MODEL_STORAGE = 'gemini_model';
 const PATH_PREFIX_STORAGE = 'source_path_prefix';
 const MAX_SIZE_STORAGE = 'max_image_size';
 const RATE_LIMIT_PER_MIN = 15;
@@ -12,11 +13,42 @@ const RATE_LIMIT_PER_MIN = 15;
 const PLATFORMS = {
   gemini: {
     name: 'Gemini',
+    // defaultModel is now selected at runtime via the model dropdown.
+    // This fallback is used only if the selector has no stored value.
     defaultModel: 'gemini-3.6-flash',
     endpoint: (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     keyHint: 'Get a free key at aistudio.google.com',
     placeholder: 'Paste your Gemini API Key...',
     badgeClass: 'gemini',
+    // Available Gemini models with their known free-tier limits.
+    // The list is used to build the dropdown. Add/remove entries as needed.
+    models: [
+      {
+        id: 'gemini-3.6-flash',
+        label: 'Gemini 3.6 Flash',
+        note: 'Free tier: ~5 RPM, ~20 RPD — best quality, very limited daily quota'
+      },
+      {
+        id: 'gemini-3.5-flash',
+        label: 'Gemini 3.5 Flash',
+        note: 'Free tier: ~10 RPM, ~250 RPD — good balance of quality and quota'
+      },
+      {
+        id: 'gemini-3.5-flash-lite',
+        label: 'Gemini 3.5 Flash-Lite',
+        note: 'Free tier: ~30 RPM, ~500 RPD — fastest, recommended for high-volume batches'
+      },
+      {
+        id: 'gemini-3.1-flash-lite',
+        label: 'Gemini 3.1 Flash-Lite',
+        note: 'Free tier: ~30 RPM, ~500 RPD — stable fallback, good for fixed-template forms'
+      },
+      {
+        id: 'gemini-3.6-pro',
+        label: 'Gemini 3.6 Pro',
+        note: 'Paid tier only — highest quality, no free daily quota'
+      }
+    ]
   },
   deepseek: {
     name: 'DeepSeek',
