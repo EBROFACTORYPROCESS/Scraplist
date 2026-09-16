@@ -711,7 +711,7 @@ async function callAI(task, apiKey, platform) {
 async function callGemini({ base64, mimeType, prompt, apiKey }) {
   const cfg = PLATFORMS.gemini;
   const modelId = getCurrentGeminiModel();
-  const url = `${cfg.endpoint(cfg.defaultModel)}?key=${apiKey}`;
+  const url = `${cfg.endpoint(modelId)}?key=${apiKey}`; 
 
   let response;
   try {
