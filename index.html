@@ -28,15 +28,28 @@
 
   .field { margin-bottom: 20px; }
   .field label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; }
-  .field input {
+  .field input,
+  .field select {
     width: 100%; padding: 10px 12px; border: 1px solid #ddd;
     border-radius: 8px; font-size: 14px;
+    background: #fff;
   }
   .field-row {
     display: flex; gap: 16px; flex-wrap: wrap;
   }
   .field-row .field { flex: 1; min-width: 200px; }
   .hint { font-size: 12px; color: #999; margin-top: 6px; }
+
+  .platform-badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 6px;
+    font-weight: 600;
+  }
+  .platform-badge.gemini { background: #e3f2fd; color: #0d47a1; }
+  .platform-badge.deepseek { background: #fff3e0; color: #e65100; }
 
   .upload-area {
     border: 2px dashed #bbb;
@@ -72,9 +85,7 @@
     white-space: nowrap;
   }
   .btn-retry:hover:not(:disabled) { background: #ec971f; }
-  .btn-retry-all {
-    background: #f0ad4e; color: #fff;
-  }
+  .btn-retry-all { background: #f0ad4e; color: #fff; }
   .btn-retry-all:hover:not(:disabled) { background: #ec971f; }
 
   .button-row {
@@ -238,6 +249,16 @@
     color: #0f5132 !important;
     border-left: 3px solid #217346 !important;
   }
+  td.cell-category-scrap {
+    background: #d4edda !important;
+    color: #155724 !important;
+    font-weight: 600;
+  }
+  td.cell-category-supplier {
+    background: #ffe5cc !important;
+    color: #8a4b00 !important;
+    font-weight: 600;
+  }
   .cell-badge {
     display: inline-block;
     font-size: 10px;
@@ -266,6 +287,8 @@
   .legend .dot-suspicious { background: #fff3cd; border: 1px solid #ffe69c; }
   .legend .dot-format { background: #f8d7da; border: 1px solid #dc3545; }
   .legend .dot-edited { background: #d1e7dd; border: 1px solid #217346; }
+  .legend .dot-scrap { background: #d4edda; border: 1px solid #155724; }
+  .legend .dot-supplier { background: #ffe5cc; border: 1px solid #8a4b00; }
 
   /* ---------- Edit Modal ---------- */
   .modal-overlay {
@@ -320,15 +343,13 @@
   }
   .modal-close:hover { background: #eee; color: #333; }
 
-  /* Body: two independent scroll areas */
   .modal-body {
     display: flex;
     flex: 1;
-    min-height: 0; /* essential for flex children to scroll */
+    min-height: 0;
     overflow: hidden;
   }
 
-  /* ---- Left: image pane ---- */
   .image-pane {
     flex: 0 0 50%;
     max-width: 50%;
@@ -368,18 +389,14 @@
     text-align: center;
   }
   .image-toolbar .spacer { flex: 1; }
-  .image-toolbar .toolbar-hint {
-    font-size: 11px;
-    color: #999;
-  }
+  .image-toolbar .toolbar-hint { font-size: 11px; color: #999; }
 
   .image-scroll {
     flex: 1;
-    overflow: auto; /* independent scroll */
+    overflow: auto;
     padding: 16px;
     text-align: center;
-    background:
-      repeating-conic-gradient(#eaeaea 0% 25%, #f5f5f5 0% 50%) 50% / 20px 20px;
+    background: repeating-conic-gradient(#eaeaea 0% 25%, #f5f5f5 0% 50%) 50% / 20px 20px;
   }
   .image-scroll img {
     display: block;
@@ -393,7 +410,6 @@
   }
   .image-scroll img.dragging { cursor: grabbing; transition: none; }
 
-  /* ---- Right: fields pane ---- */
   .fields-pane {
     flex: 1;
     display: flex;
@@ -410,12 +426,10 @@
   }
   .fields-scroll {
     flex: 1;
-    overflow-y: auto; /* independent scroll */
+    overflow-y: auto;
     padding: 16px 20px;
   }
-  .edit-field {
-    margin-bottom: 14px;
-  }
+  .edit-field { margin-bottom: 14px; }
   .edit-field label {
     display: block;
     font-size: 12px;
@@ -432,16 +446,19 @@
     margin-left: 6px;
   }
   .edit-field input,
-  .edit-field textarea {
+  .edit-field textarea,
+  .edit-field select {
     width: 100%;
     padding: 8px 10px;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 13px;
     font-family: inherit;
+    background: #fff;
   }
   .edit-field input:focus,
-  .edit-field textarea:focus {
+  .edit-field textarea:focus,
+  .edit-field select:focus {
     outline: 2px solid #4a90e2;
     border-color: transparent;
   }
@@ -464,14 +481,6 @@
     font-size: 10px;
     font-weight: 600;
     font-family: inherit;
-  }
-  .edit-field.sig-field select {
-    width: 100%;
-    padding: 8px 10px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 13px;
-    background: #fff;
   }
 
   .modal-footer {
@@ -510,20 +519,30 @@
       border-right: none;
       border-bottom: 1px solid #eee;
     }
-    .fields-pane { flex: 1; }
   }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>📄 EBRO Form Extractor · Batch</h1>
-  <p class="subtitle">Upload multiple images, auto-resized, auto rate-limited (15 req/min on free tier), edit results, export a merged Excel file.</p>
+  <p class="subtitle">Choose AI platform, upload images, extract, edit, and export merged Excel.</p>
 
   <div class="card">
-    <div class="field">
-      <label for="apiKey">Gemini API Key (stored locally, never uploaded)</label>
-      <input type="password" id="apiKey" placeholder="Paste your Gemini API Key..." />
-      <p class="hint">No key yet? Get one free at <a href="https://aistudio.google.com" target="_blank">Google AI Studio</a></p>
+    <!-- AI Platform selector -->
+    <div class="field-row">
+      <div class="field">
+        <label for="platformSelect">AI Platform</label>
+        <select id="platformSelect">
+          <option value="gemini">Google Gemini</option>
+          <option value="deepseek">DeepSeek</option>
+        </select>
+        <p class="hint" id="platformHint"></p>
+      </div>
+      <div class="field">
+        <label for="apiKey">API Key <span class="platform-badge gemini" id="apiKeyBadge">Gemini</span></label>
+        <input type="password" id="apiKey" placeholder="Paste your API Key..." />
+        <p class="hint" id="apiKeyHint"></p>
+      </div>
     </div>
 
     <div class="field-row">
@@ -534,7 +553,7 @@
       <div class="field">
         <label for="maxSize">Max image dimension (px, longest side)</label>
         <input type="number" id="maxSize" value="1600" min="600" max="4000" step="100" />
-        <p class="hint">Smaller = faster upload &amp; lower token cost. 1600px keeps form text readable.</p>
+        <p class="hint">Smaller = faster upload &amp; lower token cost.</p>
       </div>
     </div>
   </div>
@@ -576,10 +595,12 @@
     </div>
 
     <div class="legend">
-      <span><i class="dot dot-missing"></i> Missing / null — needs review</span>
-      <span><i class="dot dot-suspicious"></i> Suspicious value — double-check</span>
-      <span><i class="dot dot-format"></i> Format mismatch — likely misaligned</span>
+      <span><i class="dot dot-missing"></i> Missing / null</span>
+      <span><i class="dot dot-suspicious"></i> Suspicious</span>
+      <span><i class="dot dot-format"></i> Format mismatch</span>
       <span><i class="dot dot-edited"></i> Manually edited</span>
+      <span><i class="dot dot-scrap"></i> Process Scrap Parts (green header)</span>
+      <span><i class="dot dot-supplier"></i> Supplier Claim Parts (orange header)</span>
     </div>
 
     <div class="button-row">
@@ -600,7 +621,6 @@
     </div>
 
     <div class="modal-body">
-      <!-- LEFT: image pane with own scroll + zoom -->
       <div class="image-pane">
         <div class="image-toolbar">
           <button id="zoomOutBtn" title="Zoom out">−</button>
@@ -610,14 +630,13 @@
           <button id="zoomFitBtn" title="Fit to width">Fit W</button>
           <button id="zoomFitHBtn" title="Fit to height">Fit H</button>
           <div class="spacer"></div>
-          <span class="toolbar-hint">Drag image to pan · Ctrl+wheel to zoom</span>
+          <span class="toolbar-hint">Drag to pan · Ctrl+wheel to zoom</span>
         </div>
         <div class="image-scroll" id="imageScroll">
           <img id="modalImage" alt="Form preview" draggable="false" />
         </div>
       </div>
 
-      <!-- RIGHT: fields pane with own scroll -->
       <div class="fields-pane">
         <div class="fields-header">
           <span>Edit extracted fields — changes are saved only when you click <b>Save changes</b>.</span>
@@ -641,13 +660,37 @@
 </div>
 
 <script>
-  const API_KEY_STORAGE = 'gemini_api_key';
+  const PLATFORM_STORAGE = 'ai_platform';
+  const API_KEY_STORAGE_PREFIX = 'api_key_'; // + platform
   const PATH_PREFIX_STORAGE = 'source_path_prefix';
   const MAX_SIZE_STORAGE = 'max_image_size';
-  const MODEL = 'gemini-3.6-flash';
   const RATE_LIMIT_PER_MIN = 15;
 
+  // Platform configs
+  const PLATFORMS = {
+    gemini: {
+      name: 'Gemini',
+      defaultModel: 'gemini-3.6-flash',
+      endpoint: (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      keyHint: 'Get a free key at aistudio.google.com',
+      placeholder: 'Paste your Gemini API Key...',
+      badgeClass: 'gemini',
+    },
+    deepseek: {
+      name: 'DeepSeek',
+      defaultModel: 'deepseek-chat', // vision-capable model may differ
+      endpoint: () => `https://api.deepseek.com/chat/completions`,
+      keyHint: 'Get a key at platform.deepseek.com',
+      placeholder: 'Paste your DeepSeek API Key...',
+      badgeClass: 'deepseek',
+    }
+  };
+
+  const platformSelect = document.getElementById('platformSelect');
   const apiKeyInput = document.getElementById('apiKey');
+  const apiKeyBadge = document.getElementById('apiKeyBadge');
+  const platformHint = document.getElementById('platformHint');
+  const apiKeyHint = document.getElementById('apiKeyHint');
   const pathPrefixInput = document.getElementById('pathPrefix');
   const maxSizeInput = document.getElementById('maxSize');
   const uploadArea = document.getElementById('uploadArea');
@@ -690,16 +733,53 @@
   let editingTaskId = null;
   let editingDraft = null;
 
-  // Zoom state
   const zoomState = {
-    scale: 1,          // 1 = natural size of the loaded image
+    scale: 1,
     naturalW: 0,
     naturalH: 0,
-    fitMode: null,     // 'width' | 'height' | null
+    fitMode: null,
   };
 
-  const savedKey = localStorage.getItem(API_KEY_STORAGE);
-  if (savedKey) apiKeyInput.value = savedKey;
+  // ---- Platform selection handling ----
+  function getCurrentPlatform() {
+    return platformSelect.value;
+  }
+
+  function getKeyStorageKey(platform) {
+    return API_KEY_STORAGE_PREFIX + platform;
+  }
+
+  function updatePlatformUI() {
+    const platform = getCurrentPlatform();
+    const cfg = PLATFORMS[platform];
+    apiKeyBadge.textContent = cfg.name;
+    apiKeyBadge.className = `platform-badge ${cfg.badgeClass}`;
+    apiKeyInput.placeholder = cfg.placeholder;
+    apiKeyHint.textContent = cfg.keyHint;
+    platformHint.textContent = `Model: ${cfg.defaultModel}`;
+
+    // Load stored API key for this platform
+    const stored = localStorage.getItem(getKeyStorageKey(platform));
+    apiKeyInput.value = stored || '';
+    updateButtonState();
+  }
+
+  platformSelect.addEventListener('change', () => {
+    localStorage.setItem(PLATFORM_STORAGE, platformSelect.value);
+    updatePlatformUI();
+  });
+
+  apiKeyInput.addEventListener('input', () => {
+    const platform = getCurrentPlatform();
+    localStorage.setItem(getKeyStorageKey(platform), apiKeyInput.value.trim());
+    updateButtonState();
+  });
+
+  const savedPlatform = localStorage.getItem(PLATFORM_STORAGE);
+  if (savedPlatform && PLATFORMS[savedPlatform]) {
+    platformSelect.value = savedPlatform;
+  }
+  updatePlatformUI();
 
   const savedPrefix = localStorage.getItem(PATH_PREFIX_STORAGE);
   if (savedPrefix !== null) pathPrefixInput.value = savedPrefix;
@@ -707,10 +787,6 @@
   const savedMaxSize = localStorage.getItem(MAX_SIZE_STORAGE);
   if (savedMaxSize) maxSizeInput.value = savedMaxSize;
 
-  apiKeyInput.addEventListener('input', () => {
-    localStorage.setItem(API_KEY_STORAGE, apiKeyInput.value.trim());
-    updateButtonState();
-  });
   pathPrefixInput.addEventListener('input', () => {
     localStorage.setItem(PATH_PREFIX_STORAGE, pathPrefixInput.value);
   });
@@ -751,14 +827,8 @@
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
       const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        resolve(img);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Failed to load image'));
-      };
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load image')); };
       img.src = url;
     });
   }
@@ -767,7 +837,6 @@
     const maxDim = getMaxSize();
     const img = await loadImage(file);
     let { width, height } = img;
-
     const longest = Math.max(width, height);
     let scale = 1;
     if (longest > maxDim) scale = maxDim / longest;
@@ -778,22 +847,16 @@
     const canvas = document.createElement('canvas');
     canvas.width = targetW;
     canvas.height = targetH;
-
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, targetW, targetH);
     ctx.drawImage(img, 0, 0, targetW, targetH);
 
-    const blob = await new Promise(resolve =>
-      canvas.toBlob(resolve, 'image/jpeg', 0.85)
-    );
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
 
     return {
-      blob,
-      width: targetW,
-      height: targetH,
-      originalWidth: width,
-      originalHeight: height,
+      blob, width: targetW, height: targetH,
+      originalWidth: width, originalHeight: height,
       originalSize: file.size,
       resizedSize: blob ? blob.size : 0,
       dataUrl: canvas.toDataURL('image/jpeg', 0.85)
@@ -806,24 +869,14 @@
       showStatus('Please select image files.', 'error');
       return;
     }
-
     showStatus(`Resizing ${imageFiles.length} image(s)...`, 'loading');
 
     for (const file of imageFiles) {
       const task = {
-        id: ++idCounter,
-        file,
-        previewUrl: null,
-        status: 'waiting',
-        json: null,
-        originalJson: null,
-        edited: false,
-        error: null,
-        resizedBlob: null,
-        resizedDataUrl: null,
-        resizeInfo: null,
+        id: ++idCounter, file, previewUrl: null,
+        status: 'waiting', json: null, originalJson: null, edited: false, error: null,
+        resizedBlob: null, resizedDataUrl: null, resizeInfo: null,
       };
-
       try {
         const resized = await resizeImage(file);
         task.resizedBlob = resized.blob;
@@ -840,18 +893,15 @@
         task.previewUrl = URL.createObjectURL(file);
         task.resizeInfo = { error: 'Resize failed, using original' };
       }
-
       queue.push(task);
     }
 
     renderQueue();
     updateButtonState();
 
-    const totalOrigKB = queue
-      .filter(t => t.resizeInfo && t.resizeInfo.originalKB)
+    const totalOrigKB = queue.filter(t => t.resizeInfo && t.resizeInfo.originalKB)
       .reduce((s, t) => s + t.resizeInfo.originalKB, 0);
-    const totalNewKB = queue
-      .filter(t => t.resizeInfo && t.resizeInfo.resizedKB)
+    const totalNewKB = queue.filter(t => t.resizeInfo && t.resizeInfo.resizedKB)
       .reduce((s, t) => s + t.resizeInfo.resizedKB, 0);
 
     showStatus(
@@ -864,8 +914,9 @@
   function updateButtonState() {
     const hasPending = queue.some(t => t.status === 'waiting');
     const hasFailed = queue.some(t => t.status === 'error');
-    extractBtn.disabled = isRunning || !hasPending || !apiKeyInput.value.trim();
-    retryAllBtn.disabled = isRunning || !hasFailed || !apiKeyInput.value.trim();
+    const hasKey = !!apiKeyInput.value.trim();
+    extractBtn.disabled = isRunning || !hasPending || !hasKey;
+    retryAllBtn.disabled = isRunning || !hasFailed || !hasKey;
     clearBtn.disabled = isRunning || queue.length === 0;
   }
 
@@ -879,22 +930,15 @@
     queue.forEach(task => {
       const el = document.createElement('div');
       el.className = 'queue-item';
-
       const sizeInfo = task.resizeInfo && !task.resizeInfo.error
         ? `${task.resizeInfo.original} → ${task.resizeInfo.resized} · ${task.resizeInfo.originalKB}KB → ${task.resizeInfo.resizedKB}KB`
         : `${(task.file.size / 1024).toFixed(0)} KB`;
-
       const errorLine = task.error
-        ? `<div class="meta" style="color:#b02a37;">${escapeHtml(task.error)}</div>`
-        : '';
-
+        ? `<div class="meta" style="color:#b02a37;">${escapeHtml(task.error)}</div>` : '';
       const editedLine = task.edited
-        ? `<div class="meta" style="color:#217346;">✏️ Manually edited</div>`
-        : '';
-
+        ? `<div class="meta" style="color:#217346;">✏️ Manually edited</div>` : '';
       const retryBtn = task.status === 'error'
-        ? `<button class="btn btn-retry" data-retry-id="${task.id}">🔁 Retry</button>`
-        : '';
+        ? `<button class="btn btn-retry" data-retry-id="${task.id}">🔁 Retry</button>` : '';
 
       el.innerHTML = `
         <img src="${task.previewUrl || ''}" alt="" />
@@ -911,21 +955,14 @@
     });
 
     queueList.querySelectorAll('[data-retry-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = parseInt(btn.dataset.retryId, 10);
-        retryOne(id);
-      });
+      btn.addEventListener('click', () => retryOne(parseInt(btn.dataset.retryId, 10)));
     });
   }
 
   function statusLabel(s) {
     return {
-      waiting: 'Waiting',
-      processing: 'Processing',
-      success: 'Success',
-      error: 'Failed',
-      cancelled: 'Cancelled',
-      retrying: 'Retrying',
+      waiting: 'Waiting', processing: 'Processing', success: 'Success',
+      error: 'Failed', cancelled: 'Cancelled', retrying: 'Retrying',
     }[s] || s;
   }
 
@@ -953,83 +990,108 @@
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // ============================================================
-  //  Field schema
+  //  Field schema (added part_category)
   // ============================================================
   const FIELD_SCHEMA = {
     header: {
+      part_category: {
+        type: 'string',
+        description: 'The category of the part, determined by the color of the TOP HEADER BAND of the form. Look at the broad colored strip across the top of the form, just below the EBRO logo area. If that header band is GREEN, return exactly "Process Scrap Parts". If that header band is ORANGE, return exactly "Supplier Claim Parts". Return exactly one of those two strings.'
+      },
       company: { type: 'string', description: 'Top-left header inside a white box labeled "EBRO", usually reads "EBRO FACTORY". Located at the very top-left of the form.' },
-      document_type: { type: 'string', description: 'The large title printed in the green band near the top, usually "CONTROL CALIDAD". Located below the EBRO logo.' },
-      red_number: { type: 'string', description: 'The large red printed number in the white box on the right side of the green band, e.g. "173432". Located top-right, below the EBRO header.' }
+      document_type: { type: 'string', description: 'The large title printed in the colored band near the top, usually "CONTROL CALIDAD". Located below the EBRO logo.' },
+      red_number: { type: 'string', description: 'The large red printed number in the white box on the right side of the colored band, e.g. "173432". Located top-right, below the EBRO header.' }
     },
     section_1: {
-      codigo_conjunto: { type: 'string', description: 'The handwritten value inside the box labeled "CÓDIGO CONJUNTO". Usually a long alphanumeric code starting with "4", e.g. "40301YS92 AAAG4". This label is in the first row of the form body, directly under the green header band.' },
-      codigo_componente: { type: 'string', description: 'The handwritten value inside the box labeled "CÓDIGO COMPONENTE". Usually contains "/" separators, e.g. "Pilar B/Sup/Der". This label is directly BELOW "CÓDIGO CONJUNTO".' },
-      codigo_rechaz: { type: 'string', description: 'The handwritten value inside the small box labeled "CÓDIGO RECHAZ". Usually a short numeric code, e.g. "2216". Located on the LEFT side, below "CÓDIGO COMPONENTE".' },
-      cantidad: { type: 'string', description: 'The handwritten value in the box labeled "CANTIDAD". Usually a single small number, e.g. "2". Located on the RIGHT side, on the same row as "CÓDIGO RECHAZ".' },
-      origen_area_zona: { type: 'string', description: 'The handwritten value in the "ORIGEN" box under the sub-labels "ÁREA" and "ZONA". Usually a short code like "n 1 5 2". Located on the left side, on the same row as "DESTINO".' }
+      codigo_conjunto: { type: 'string', description: 'The handwritten value inside the box labeled "CÓDIGO CONJUNTO". Usually a long alphanumeric code starting with "4", e.g. "40301YS92 AAAG4".' },
+      codigo_componente: { type: 'string', description: 'The handwritten value inside the box labeled "CÓDIGO COMPONENTE". Usually contains "/" separators, e.g. "Pilar B/Sup/Der".' },
+      codigo_rechaz: { type: 'string', description: 'The handwritten value inside the small box labeled "CÓDIGO RECHAZ". Usually a short numeric code, e.g. "2216".' },
+      cantidad: { type: 'string', description: 'The handwritten value in the box labeled "CANTIDAD". Usually a single small number, e.g. "2".' },
+      origen_area_zona: { type: 'string', description: 'The handwritten value in the "ORIGEN" box. Usually a short code like "n 1 5 2".' }
     },
     section_2: {
-      motivo_rechace: { type: 'string', description: 'The rejecting code in the box labeled "MOTIVO RECHACE". Normally 4 digits, but may contain a mix of numbers and letters (e.g. "2216", "2216D", "A216"). It is NOT a date and NOT an operator ID. Located in the LOWER HALF of the form, in the second numbered section.' },
-      fecha: { type: 'string', description: 'The date when the record is registered, written in the box labeled "FECHA". Format is usually "DD/MM/YY" or "DD/MM/YYYY", e.g. "22/4/26". It must look like a date. Located at the BOTTOM-LEFT of the form, in the second numbered section.' },
-      observaciones: { type: 'string', description: 'The comments describing the issue, handwritten inside the box labeled "OBSERVACIONES". Normally a short text string (a word or phrase in Spanish), e.g. "Rápido", "Rayado", "Golpe". It is NOT a date, NOT a numeric code, NOT an operator ID. Located at the BOTTOM-CENTER of the form.' },
-      operario: { type: 'string', description: 'The operator ID handwritten inside the box labeled "OPERARIO". Normally 3 or 4 digits (e.g. "897", "1234"). It is a numeric ID, NOT a date, NOT a rejecting code. Located at the BOTTOM-LEFT, in the box directly below "FECHA".' }
+      motivo_rechace: { type: 'string', description: 'The rejecting code in the box labeled "MOTIVO RECHACE". Normally 4 digits, may contain letters (e.g. "2216", "2216D"). It is NOT a date and NOT an operator ID.' },
+      fecha: { type: 'string', description: 'The date when the record is registered, in the box labeled "FECHA". Format "DD/MM/YY", e.g. "22/4/26". Must look like a date.' },
+      observaciones: { type: 'string', description: 'The comments describing the issue, in the box labeled "OBSERVACIONES". A short text string, e.g. "Rápido", "Rayado". NOT a number, NOT a date.' },
+      operario: { type: 'string', description: 'The operator ID in the box labeled "OPERARIO". Normally 3 or 4 digits (e.g. "897"). Located directly below "FECHA".' }
     },
     signatures: {
-      inspector: { type: 'string', description: 'Whether the "INSPECTOR" box at the bottom-left has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.' },
-      visto_bueno_calidad: { type: 'string', description: 'Whether the "Vº Bº C. CALIDAD" box at the bottom-center has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.' },
-      encargado_linea: { type: 'string', description: 'Whether the "ENCARGADO LÍNEA" box at the bottom-right has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.' }
+      inspector: { type: 'string', description: 'Whether the "INSPECTOR" box has a handwritten signature. Return exactly "Signed" or "Not Signed".' },
+      visto_bueno_calidad: { type: 'string', description: 'Whether the "Vº Bº C. CALIDAD" box has a handwritten signature. Return exactly "Signed" or "Not Signed".' },
+      encargado_linea: { type: 'string', description: 'Whether the "ENCARGADO LÍNEA" box has a handwritten signature. Return exactly "Signed" or "Not Signed".' }
     }
   };
 
-  function buildPrompt() {
+  function buildPromptText() {
     const lines = [];
     lines.push('You are a data extraction assistant. Extract all information from this EBRO Factory "Control Calidad" form image.');
     lines.push('');
     lines.push('CRITICAL RULES:');
-    lines.push('1. Each field description tells you EXACTLY where the label is on the form and what its value should look like.');
-    lines.push('2. Match the value based on SPATIAL PROXIMITY: the value must be inside or directly next to the box described by the label.');
-    lines.push('3. Do NOT assign a value to a field if that value is visually closer to a different label.');
-    lines.push('4. Do NOT confuse similar-looking fields (e.g. fecha vs operario vs motivo_rechace). Read each field\'s description carefully.');
-    lines.push('5. For handwritten values, transcribe exactly what you see. Preserve spaces and separators.');
+    lines.push('1. The very FIRST thing you must determine is the color of the TOP HEADER BAND of the form:');
+    lines.push('   - If the top header band is GREEN → part_category = "Process Scrap Parts"');
+    lines.push('   - If the top header band is ORANGE → part_category = "Supplier Claim Parts"');
+    lines.push('   Return that exact string in header.part_category.');
+    lines.push('2. Each field description tells you EXACTLY where the label is on the form.');
+    lines.push('3. Match the value based on SPATIAL PROXIMITY.');
+    lines.push('4. Do NOT confuse similar fields (fecha vs operario vs motivo_rechace).');
+    lines.push('5. For handwritten values, transcribe exactly what you see.');
     lines.push('6. For signature fields, return exactly "Signed" or "Not Signed".');
-    lines.push('7. If a non-signature field is empty or truly illegible, use null.');
+    lines.push('7. If a non-signature field is empty or illegible, use null.');
     lines.push('');
-    lines.push('Return a valid JSON object with the structure below. Each description explains WHERE the field is and WHAT its value looks like.');
+    lines.push('Return a valid JSON object with the structure below:');
     lines.push('');
-    lines.push('{');
 
+    const obj = {};
     const sections = Object.keys(FIELD_SCHEMA);
-    sections.forEach((section, si) => {
-      lines.push(`  "${section}": {`);
-      const fields = Object.keys(FIELD_SCHEMA[section]);
-      fields.forEach((field, fi) => {
-        const def = FIELD_SCHEMA[section][field];
-        const comma = fi < fields.length - 1 ? ',' : '';
-        lines.push(`    "${field}": {`);
-        lines.push(`      "type": "${def.type}",`);
-        lines.push(`      "description": ${JSON.stringify(def.description)}`);
-        lines.push(`    }${comma}`);
+    sections.forEach(section => {
+      obj[section] = {};
+      Object.keys(FIELD_SCHEMA[section]).forEach(field => {
+        obj[section][field] = FIELD_SCHEMA[section][field].description;
       });
-      const sComma = si < sections.length - 1 ? ',' : '';
-      lines.push(`  }${sComma}`);
     });
-
-    lines.push('}');
+    lines.push(JSON.stringify(obj, null, 2));
     lines.push('');
     lines.push('Return ONLY the JSON object. No markdown fences, no explanations.');
-
     return lines.join('\n');
+  }
+
+  function buildJsonSchema() {
+    // JSON schema describing the response shape
+    const properties = {};
+    const sections = Object.keys(FIELD_SCHEMA);
+    sections.forEach(section => {
+      properties[section] = {
+        type: 'object',
+        properties: {},
+        required: Object.keys(FIELD_SCHEMA[section])
+      };
+      Object.keys(FIELD_SCHEMA[section]).forEach(field => {
+        properties[section].properties[field] = {
+          type: FIELD_SCHEMA[section][field].type,
+          description: FIELD_SCHEMA[section][field].description
+        };
+      });
+    });
+    return {
+      type: 'object',
+      properties,
+      required: sections
+    };
   }
 
   // ============================================================
   //  Format rules
   // ============================================================
   const FORMAT_RULES = {
+    'header.part_category': {
+      test: v => /^(Process Scrap Parts|Supplier Claim Parts)$/i.test(v.trim()),
+      hint: 'Expected "Process Scrap Parts" or "Supplier Claim Parts"'
+    },
     'section_1.codigo_conjunto': { test: v => /^4[0-9A-Z\s\/\-]{6,}$/i.test(v.trim()), hint: 'Expected a long code starting with "4"' },
     'section_1.codigo_componente': { test: v => /[A-Za-z]/.test(v) && v.trim().length >= 4, hint: 'Expected a text description like "Pilar B/Sup/Der"' },
     'section_1.codigo_rechaz': { test: v => /^[0-9]{3,5}[A-Z]?$/i.test(v.trim()), hint: 'Expected a short numeric code like "2216"' },
     'section_1.cantidad': { test: v => /^[0-9]{1,3}$/.test(v.trim()), hint: 'Expected a small number like "2"' },
-    'section_2.motivo_rechace': { test: v => /^[0-9A-Z]{3,5}$/i.test(v.replace(/\s+/g, '')), hint: 'Expected a 3-5 character rejecting code (digits and/or letters)' },
+    'section_2.motivo_rechace': { test: v => /^[0-9A-Z]{3,5}$/i.test(v.replace(/\s+/g, '')), hint: 'Expected a 3-5 character rejecting code' },
     'section_2.fecha': { test: v => /^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}$/.test(v.trim()), hint: 'Expected a date like "22/4/26"' },
     'section_2.operario': { test: v => /^[0-9]{3,4}$/.test(v.trim()), hint: 'Expected a 3 or 4 digit operator ID' },
     'section_2.observaciones': { test: v => /[A-Za-zÀ-ÿ]/.test(v) && !/^\d+$/.test(v.trim()), hint: 'Expected a text comment, not a number' },
@@ -1084,6 +1146,7 @@
     progressWrap.style.display = 'block';
     summaryEl.style.display = 'none';
 
+    const platform = getCurrentPlatform();
     let done = 0, success = 0, failed = 0;
 
     for (const task of tasks) {
@@ -1093,7 +1156,7 @@
 
       try {
         await rateLimiter.wait();
-        const json = await extractOneWithRetry(task, apiKey);
+        const json = await extractOneWithRetry(task, apiKey, platform);
         task.json = json;
         task.originalJson = JSON.parse(JSON.stringify(json));
         task.status = 'success';
@@ -1145,9 +1208,11 @@
     renderQueue();
     updateButtonState();
 
+    const platform = getCurrentPlatform();
+
     try {
       await rateLimiter.wait();
-      const json = await extractOneWithRetry(task, apiKey);
+      const json = await extractOneWithRetry(task, apiKey, platform);
       task.json = json;
       task.originalJson = JSON.parse(JSON.stringify(json));
       task.edited = false;
@@ -1207,21 +1272,21 @@
   }
 
   // ============================================================
-  //  Gemini calls
+  //  AI dispatch (Gemini or DeepSeek)
   // ============================================================
-  async function extractOneWithRetry(task, apiKey) {
+  async function extractOneWithRetry(task, apiKey, platform) {
     const MAX_ATTEMPTS = 3;
     const delays = [5000, 10000, 20000];
     let lastErr = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        return await extractOne(task, apiKey);
+        return await callAI(task, apiKey, platform);
       } catch (err) {
         lastErr = err;
         const msg = String(err.message || '').toLowerCase();
         const isTransient = err.transient === true ||
-          /high demand|overloaded|temporarily|try again|503|502|504|429/.test(msg);
+          /high demand|overloaded|temporarily|try again|rate limit|503|502|504|429/.test(msg);
         if (!isTransient || attempt === MAX_ATTEMPTS) throw err;
 
         const waitMs = delays[attempt - 1] || 10000;
@@ -1236,13 +1301,25 @@
     throw lastErr || new Error('Unknown error');
   }
 
-  async function extractOne(task, apiKey) {
+  async function callAI(task, apiKey, platform) {
     const sourceBlob = task.resizedBlob || task.file;
     const base64 = await blobToBase64(sourceBlob);
     const mimeType = sourceBlob.type || 'image/jpeg';
-    const prompt = buildPrompt();
+    const prompt = buildPromptText();
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
+    if (platform === 'gemini') {
+      return await callGemini({ base64, mimeType, prompt, apiKey });
+    } else if (platform === 'deepseek') {
+      return await callDeepSeek({ base64, mimeType, prompt, apiKey });
+    } else {
+      throw new Error('Unknown platform: ' + platform);
+    }
+  }
+
+  async function callGemini({ base64, mimeType, prompt, apiKey }) {
+    const cfg = PLATFORMS.gemini;
+    const url = `${cfg.endpoint(cfg.defaultModel)}?key=${apiKey}`;
+
     let response;
     try {
       response = await fetch(url, {
@@ -1257,9 +1334,10 @@
           }],
           generationConfig: {
             responseMimeType: 'application/json',
+            responseSchema: buildJsonSchema(),
             temperature: 0.1,
             topP: 0.8,
-            maxOutputTokens: 2000
+            maxOutputTokens: 3000
           }
         })
       });
@@ -1285,22 +1363,104 @@
       throw e;
     }
 
-    let cleaned = text.trim()
-      .replace(/^```json\s*/i, '')
-      .replace(/^```\s*/i, '')
-      .replace(/\s*```$/, '');
-
+    const cleaned = stripFences(text);
     let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
-      const e = new Error('Invalid JSON from model: ' + parseErr.message);
+    try { parsed = JSON.parse(cleaned); }
+    catch (parseErr) {
+      const e = new Error('Invalid JSON from Gemini: ' + parseErr.message);
       e.transient = true;
       throw e;
     }
 
+    return postProcess(parsed);
+  }
+
+  async function callDeepSeek({ base64, mimeType, prompt, apiKey }) {
+    const cfg = PLATFORMS.deepseek;
+    const url = cfg.endpoint();
+
+    // DeepSeek uses OpenAI-compatible chat completions
+    const body = {
+      model: cfg.defaultModel,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a strict data extraction assistant. Always reply with a single valid JSON object only, no markdown, no explanations.'
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${base64}`
+              }
+            }
+          ]
+        }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.1,
+      max_tokens: 3000,
+      stream: false
+    };
+
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(body)
+      });
+    } catch (netErr) {
+      const e = new Error('Network error: ' + netErr.message);
+      e.transient = true;
+      throw e;
+    }
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      const apiMsg = errBody.error?.message || errBody.message || `HTTP ${response.status}`;
+      const e = new Error(apiMsg);
+      if ([429, 503, 502, 504].includes(response.status)) e.transient = true;
+      throw e;
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) {
+      const e = new Error('DeepSeek returned no content.');
+      e.transient = true;
+      throw e;
+    }
+
+    const cleaned = stripFences(text);
+    let parsed;
+    try { parsed = JSON.parse(cleaned); }
+    catch (parseErr) {
+      const e = new Error('Invalid JSON from DeepSeek: ' + parseErr.message);
+      e.transient = true;
+      throw e;
+    }
+
+    return postProcess(parsed);
+  }
+
+  function stripFences(text) {
+    return text.trim()
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/, '');
+  }
+
+  function postProcess(parsed) {
     parsed = unwrapSchemaEcho(parsed);
     parsed = normalizeSignatures(parsed);
+    parsed = normalizePartCategory(parsed);
     return parsed;
   }
 
@@ -1326,6 +1486,42 @@
       else if (/sign/i.test(s) && !/not|no |empty|blank/i.test(s)) sig[key] = 'Signed';
       else sig[key] = 'Not Signed';
     });
+    return obj;
+  }
+
+  function normalizePartCategory(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (!obj.header || typeof obj.header !== 'object') return obj;
+
+    const raw = obj.header.part_category;
+    if (raw === null || raw === undefined || String(raw).trim() === '') {
+      obj.header.part_category = 'Unknown';
+      return obj;
+    }
+
+    const s = String(raw).trim();
+
+    // Already exact match
+    if (/^Process Scrap Parts$/i.test(s)) {
+      obj.header.part_category = 'Process Scrap Parts';
+      return obj;
+    }
+    if (/^Supplier Claim Parts$/i.test(s)) {
+      obj.header.part_category = 'Supplier Claim Parts';
+      return obj;
+    }
+
+    // Keyword fallback
+    const lower = s.toLowerCase();
+    if (/green|scrap|proceso|process|rechazo interno|internal/.test(lower)) {
+      obj.header.part_category = 'Process Scrap Parts';
+    } else if (/orange|supplier|proveedor|claim|reclamaci/.test(lower)) {
+      obj.header.part_category = 'Supplier Claim Parts';
+    } else {
+      // Keep whatever the model said, but mark as unknown
+      obj.header.part_category = 'Unknown';
+    }
+
     return obj;
   }
 
@@ -1416,7 +1612,17 @@
 
         let cls = '', badge = '';
 
-        if (status === 'missing') {
+        // Special styling for part_category
+        if (h === 'header.part_category' && status === 'ok') {
+          const v = String(raw).toLowerCase();
+          if (v.includes('process scrap')) {
+            cls = 'cell-category-scrap';
+            badge = '<span class="cell-badge" style="background:#a3cfbb;color:#0f5132;">green</span>';
+          } else if (v.includes('supplier claim')) {
+            cls = 'cell-category-supplier';
+            badge = '<span class="cell-badge" style="background:#ffc99a;color:#8a4b00;">orange</span>';
+          }
+        } else if (status === 'missing') {
           missingCount++;
           cls = 'cell-missing';
           badge = '<span class="cell-badge">missing</span>';
@@ -1457,38 +1663,39 @@
     resultTable.appendChild(tbody);
 
     resultTable.querySelectorAll('[data-edit-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = parseInt(btn.dataset.editId, 10);
-        openEditModal(id);
-      });
+      btn.addEventListener('click', () => openEditModal(parseInt(btn.dataset.editId, 10)));
     });
 
     const totalCells = rows.length * headers.length;
     const totalIssues = missingCount + suspiciousCount + formatCount;
     const editedCount = rows.filter(r => r._edited).length;
 
+    const scrapCount = rows.filter(r => String(r['header.part_category'] || '').includes('Process Scrap')).length;
+    const supplierCount = rows.filter(r => String(r['header.part_category'] || '').includes('Supplier Claim')).length;
+
     if (totalIssues === 0) {
       issuesBanner.classList.add('all-good');
       issuesBanner.textContent =
-        `✅ All ${totalCells} fields look good.` +
+        `✅ All ${totalCells} fields look good. ` +
+        `Categories — Process Scrap: ${scrapCount}, Supplier Claim: ${supplierCount}.` +
         (editedCount ? ` ${editedCount} row(s) manually edited.` : '');
     } else {
       issuesBanner.classList.remove('all-good');
       issuesBanner.textContent =
         `⚠️ ${totalIssues} of ${totalCells} fields need review — ` +
-        `${missingCount} missing, ${suspiciousCount} suspicious, ${formatCount} format mismatch.` +
+        `${missingCount} missing, ${suspiciousCount} suspicious, ${formatCount} format mismatch. ` +
+        `Categories — Process Scrap: ${scrapCount}, Supplier Claim: ${supplierCount}.` +
         (editedCount ? ` ${editedCount} row(s) manually edited.` : '') +
         ` Click "Edit" to correct.`;
     }
   }
 
   // ============================================================
-  //  Zoom controls
+  //  Zoom
   // ============================================================
   function applyZoom() {
     const s = zoomState.scale;
     modalImage.style.transform = `scale(${s})`;
-    // Keep transform-origin at top-center so panning feels natural
     modalImage.style.transformOrigin = 'top center';
     zoomLabel.textContent = `${Math.round(s * 100)}%`;
   }
@@ -1500,18 +1707,12 @@
     applyZoom();
   }
 
-  function zoomIn() {
-    setZoom(zoomState.scale * 1.25);
-  }
-  function zoomOut() {
-    setZoom(zoomState.scale / 1.25);
-  }
-  function zoomReset() {
-    setZoom(1);
-  }
+  function zoomIn() { setZoom(zoomState.scale * 1.25); }
+  function zoomOut() { setZoom(zoomState.scale / 1.25); }
+  function zoomReset() { setZoom(1); }
   function zoomFitWidth() {
     if (!zoomState.naturalW) return;
-    const containerW = imageScroll.clientWidth - 32; // padding
+    const containerW = imageScroll.clientWidth - 32;
     setZoom(containerW / zoomState.naturalW, 'width');
   }
   function zoomFitHeight() {
@@ -1526,49 +1727,33 @@
   zoomFitBtn.addEventListener('click', zoomFitWidth);
   zoomFitHBtn.addEventListener('click', zoomFitHeight);
 
-  // Ctrl + wheel to zoom; plain wheel scrolls the image pane as usual
   imageScroll.addEventListener('wheel', (e) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
-      const delta = -e.deltaY;
-      if (delta > 0) zoomIn();
-      else zoomOut();
+      if (-e.deltaY > 0) zoomIn(); else zoomOut();
     }
   }, { passive: false });
 
-  // Drag to pan
-  let isPanning = false;
-  let panStartX = 0, panStartY = 0;
-  let panScrollLeft = 0, panScrollTop = 0;
-
+  let isPanning = false, panStartX = 0, panStartY = 0, panScrollLeft = 0, panScrollTop = 0;
   modalImage.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
     isPanning = true;
-    panStartX = e.clientX;
-    panStartY = e.clientY;
-    panScrollLeft = imageScroll.scrollLeft;
-    panScrollTop = imageScroll.scrollTop;
+    panStartX = e.clientX; panStartY = e.clientY;
+    panScrollLeft = imageScroll.scrollLeft; panScrollTop = imageScroll.scrollTop;
     modalImage.classList.add('dragging');
     e.preventDefault();
   });
-
   document.addEventListener('mousemove', (e) => {
     if (!isPanning) return;
-    const dx = e.clientX - panStartX;
-    const dy = e.clientY - panStartY;
-    imageScroll.scrollLeft = panScrollLeft - dx;
-    imageScroll.scrollTop = panScrollTop - dy;
+    imageScroll.scrollLeft = panScrollLeft - (e.clientX - panStartX);
+    imageScroll.scrollTop = panScrollTop - (e.clientY - panStartY);
   });
-
   document.addEventListener('mouseup', () => {
-    if (isPanning) {
-      isPanning = false;
-      modalImage.classList.remove('dragging');
-    }
+    if (isPanning) { isPanning = false; modalImage.classList.remove('dragging'); }
   });
 
   // ============================================================
-  //  Edit Modal
+  //  Edit modal
   // ============================================================
   function openEditModal(taskId) {
     const task = queue.find(t => t.id === taskId);
@@ -1580,18 +1765,13 @@
     modalTitle.textContent = `Edit: ${task.file.name}`;
     modalFileLabel.textContent = buildFilePath(task.file);
 
-    // Reset zoom state; image natural size will be known on load
-    zoomState.scale = 1;
-    zoomState.naturalW = 0;
-    zoomState.naturalH = 0;
-    zoomState.fitMode = null;
+    zoomState.scale = 1; zoomState.naturalW = 0; zoomState.naturalH = 0; zoomState.fitMode = null;
     zoomLabel.textContent = '100%';
 
     modalImage.onload = () => {
       zoomState.naturalW = modalImage.naturalWidth;
       zoomState.naturalH = modalImage.naturalHeight;
       applyZoom();
-      // Auto-fit width on open for a comfortable starting view
       setTimeout(zoomFitWidth, 50);
     };
     modalImage.src = task.previewUrl || task.resizedDataUrl || '';
@@ -1647,6 +1827,7 @@
         fieldEl.dataset.path = path;
 
         const isSignature = section === 'signatures';
+        const isPartCategory = path === 'header.part_category';
         const hint = getFieldHint(path);
 
         const label = document.createElement('label');
@@ -1658,15 +1839,20 @@
         let input;
         if (isSignature) {
           input = document.createElement('select');
-          input.id = `edit-${path}`;
           ['Signed', 'Not Signed'].forEach(opt => {
             const o = document.createElement('option');
-            o.value = opt;
-            o.textContent = opt;
+            o.value = opt; o.textContent = opt;
             if (String(currentValue) === opt) o.selected = true;
             input.appendChild(o);
           });
-          fieldEl.classList.add('sig-field');
+        } else if (isPartCategory) {
+          input = document.createElement('select');
+          ['Process Scrap Parts', 'Supplier Claim Parts', 'Unknown'].forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt; o.textContent = opt;
+            if (String(currentValue) === opt) o.selected = true;
+            input.appendChild(o);
+          });
         } else {
           const strVal = currentValue === null || currentValue === undefined ? '' : String(currentValue);
           if (strVal.length > 60) {
@@ -1676,10 +1862,10 @@
             input = document.createElement('input');
             input.type = 'text';
           }
-          input.id = `edit-${path}`;
           input.value = strVal;
         }
 
+        input.id = `edit-${path}`;
         input.dataset.path = path;
         input.addEventListener('input', onEditInput);
         input.addEventListener('change', onEditInput);
@@ -1714,7 +1900,6 @@
 
     let newVal = input.value;
     if (newVal === '') newVal = null;
-
     editingDraft[section][fieldKey] = newVal;
 
     const fieldEl = input.closest('.edit-field');
@@ -1723,11 +1908,8 @@
     const origStr = orig === null || orig === undefined ? '' : String(orig);
     const newStr = newVal === null ? '' : String(newVal);
 
-    if (origStr !== newStr) {
-      fieldEl.classList.add('changed');
-    } else {
-      fieldEl.classList.remove('changed');
-    }
+    if (origStr !== newStr) fieldEl.classList.add('changed');
+    else fieldEl.classList.remove('changed');
 
     const note = fieldEl.querySelector('.original-value');
     if (note) {
@@ -1777,13 +1959,11 @@
     if (e.target === modalOverlay) closeEditModal();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modalOverlay.classList.contains('open')) {
-      closeEditModal();
-    }
+    if (e.key === 'Escape' && modalOverlay.classList.contains('open')) closeEditModal();
   });
 
   // ============================================================
-  //  Excel download
+  //  Excel export
   // ============================================================
   downloadExcelBtn.addEventListener('click', () => {
     const successTasks = queue.filter(t => t.status === 'success' && t.json);
