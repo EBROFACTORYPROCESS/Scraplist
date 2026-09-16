@@ -122,7 +122,6 @@
     font-size: 13px; color: #084298;
   }
 
-  /* ---- Results table ---- */
   .result-section { display: none; }
   .result-header {
     display: flex; justify-content: space-between; align-items: center;
@@ -191,7 +190,6 @@
     max-width: 320px;
   }
 
-  /* Red flags */
   td.cell-missing {
     background: #f8d7da !important;
     color: #842029 !important;
@@ -200,6 +198,11 @@
   td.cell-suspicious {
     background: #fff3cd !important;
     color: #664d03 !important;
+  }
+  td.cell-format-mismatch {
+    background: #f8d7da !important;
+    color: #842029 !important;
+    border-left: 3px solid #dc3545 !important;
   }
   .cell-badge {
     display: inline-block;
@@ -212,6 +215,7 @@
   }
   .cell-missing .cell-badge { background: #f1aeb5; color: #58151c; }
   .cell-suspicious .cell-badge { background: #ffda6a; color: #664d03; }
+  .cell-format-mismatch .cell-badge { background: #f1aeb5; color: #58151c; }
 
   .legend {
     display: flex; gap: 16px; flex-wrap: wrap;
@@ -225,6 +229,7 @@
   }
   .legend .dot-missing { background: #f8d7da; border: 1px solid #f1aeb5; }
   .legend .dot-suspicious { background: #fff3cd; border: 1px solid #ffe69c; }
+  .legend .dot-format { background: #f8d7da; border: 1px solid #dc3545; }
 </style>
 </head>
 <body>
@@ -232,7 +237,6 @@
   <h1>📄 EBRO Form Extractor · Batch</h1>
   <p class="subtitle">Upload multiple images, auto rate-limited (15 req/min on free tier), export a merged Excel file.</p>
 
-  <!-- API Key -->
   <div class="card">
     <div class="field">
       <label for="apiKey">Gemini API Key (stored locally, never uploaded)</label>
@@ -245,12 +249,10 @@
       <input type="text" id="pathPrefix" value="c/download/" placeholder="e.g. c/download/" />
       <p class="hint">
         Example: <code>c/download/</code> + <code>picture22.png</code> → <code>c/download/picture22.png</code>.
-        Leave empty to use the browser-provided relative path (folder uploads only).
       </p>
     </div>
   </div>
 
-  <!-- Upload -->
   <div class="card">
     <div class="upload-area" id="uploadArea">
       <div class="icon">📤</div>
@@ -274,7 +276,6 @@
     <div class="queue-list" id="queueList"></div>
   </div>
 
-  <!-- Results -->
   <div class="card result-section" id="resultSection">
     <div class="result-header">
       <h2>✅ Extraction Results</h2>
@@ -287,8 +288,9 @@
     </div>
 
     <div class="legend">
-      <span><i class="dot dot-missing"></i> Missing / null value — needs review</span>
+      <span><i class="dot dot-missing"></i> Missing / null — needs review</span>
       <span><i class="dot dot-suspicious"></i> Suspicious value — double-check</span>
+      <span><i class="dot dot-format"></i> Format mismatch — likely misaligned</span>
     </div>
 
     <div class="button-row">
@@ -339,7 +341,6 @@
     localStorage.setItem(PATH_PREFIX_STORAGE, pathPrefixInput.value);
   });
 
-  // ---------- Upload ----------
   uploadArea.addEventListener('click', () => fileInput.click());
   uploadArea.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -392,7 +393,6 @@
     statusEl.className = 'status ' + type;
   }
 
-  // ---------- Queue rendering ----------
   function renderQueue() {
     queueList.innerHTML = '';
     queue.forEach(task => {
@@ -426,7 +426,6 @@
     }[c]));
   }
 
-  // ---------- Rate limiter ----------
   const rateLimiter = {
     timestamps: [],
     async wait() {
@@ -444,7 +443,170 @@
   };
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  // ---------- Main flow ----------
+  // ============================================================
+  //  NEW: Field schema with spatial descriptions
+  //  Each field tells the model WHERE it is and WHAT it looks like.
+  // ============================================================
+  const FIELD_SCHEMA = {
+    header: {
+      company: {
+        type: 'string',
+        description: 'Top-left header inside a white box labeled "EBRO", usually reads "EBRO FACTORY". Located at the very top-left of the form.'
+      },
+      document_type: {
+        type: 'string',
+        description: 'The large title printed in the green band near the top, usually "CONTROL CALIDAD". Located below the EBRO logo.'
+      },
+      red_number: {
+        type: 'string',
+        description: 'The large red printed number in the white box on the right side of the green band, e.g. "173432". Located top-right, below the EBRO header.'
+      }
+    },
+    section_1: {
+      codigo_conjunto: {
+        type: 'string',
+        description: 'The handwritten value inside the box labeled "CÓDIGO CONJUNTO". Usually a long alphanumeric code starting with "4", e.g. "40301YS92 AAAG4". This label is in the first row of the form body, directly under the green header band.'
+      },
+      codigo_componente: {
+        type: 'string',
+        description: 'The handwritten value inside the box labeled "CÓDIGO COMPONENTE". Usually contains "/" separators, e.g. "Pilar B/Sup/Der". This label is directly BELOW "CÓDIGO CONJUNTO".'
+      },
+      codigo_rechaz: {
+        type: 'string',
+        description: 'The handwritten value inside the small box labeled "CÓDIGO RECHAZ". Usually a short numeric code, e.g. "2216". Located on the LEFT side, below "CÓDIGO COMPONENTE".'
+      },
+      cantidad: {
+        type: 'string',
+        description: 'The handwritten value in the box labeled "CANTIDAD". Usually a single small number, e.g. "2". Located on the RIGHT side, on the same row as "CÓDIGO RECHAZ".'
+      },
+      origen_area_zona: {
+        type: 'string',
+        description: 'The handwritten value in the "ORIGEN" box under the sub-labels "ÁREA" and "ZONA". Usually a short code like "n 1 5 2". Located on the left side, on the same row as "DESTINO".'
+      }
+    },
+    section_2: {
+      motivo_rechace: {
+        type: 'string',
+        description: 'The handwritten value in the box labeled "MOTIVO RECHACE". Usually a short code similar to "codigo_rechaz", e.g. "2216 D". Located in the LOWER HALF of the form, in the second numbered section.'
+      },
+      fecha: {
+        type: 'string',
+        description: 'The handwritten date in the box labeled "FECHA". Format is usually "DD/MM/YY" or "DD/MM/YYYY", e.g. "22/4/26". Located at the BOTTOM-LEFT of the form.'
+      },
+      observaciones: {
+        type: 'string',
+        description: 'The handwritten note in the box labeled "OBSERVACIONES". Usually a short word describing the issue, e.g. "Rápido". Located at the BOTTOM-CENTER of the form.'
+      },
+      operario: {
+        type: 'string',
+        description: 'The handwritten value in the box labeled "OPERARIO". Usually a short numeric ID, e.g. "897". Located at the BOTTOM-LEFT, just below "FECHA".'
+      }
+    },
+    signatures: {
+      inspector: {
+        type: 'string',
+        description: 'Describe whether the "INSPECTOR" box at the bottom has a handwritten signature. Use "Signed" if there is a signature, or null if empty.'
+      },
+      visto_bueno_calidad: {
+        type: 'string',
+        description: 'Describe whether the "Vº Bº C. CALIDAD" box at the bottom has a handwritten signature. Use "Signed" if there is a signature, or null if empty.'
+      },
+      encargado_linea: {
+        type: 'string',
+        description: 'Describe whether the "ENCARGADO LÍNEA" box at the bottom has a handwritten signature. Use "Signed" if there is a signature, or null if empty.'
+      }
+    }
+  };
+
+  // Build the prompt dynamically from the schema
+  function buildPrompt() {
+    const lines = [];
+    lines.push('You are a data extraction assistant. Extract all information from this EBRO Factory "Control Calidad" form image.');
+    lines.push('');
+    lines.push('CRITICAL RULES:');
+    lines.push('1. Each field description tells you EXACTLY where the label is on the form.');
+    lines.push('2. Match the value based on SPATIAL PROXIMITY: the value must be inside or directly next to the box described by the label.');
+    lines.push('3. Do NOT assign a value to a field if that value is visually closer to a different label.');
+    lines.push('4. For handwritten values, transcribe exactly what you see. Preserve spaces and separators.');
+    lines.push('5. If a field is empty or truly illegible, use null.');
+    lines.push('');
+    lines.push('Return a valid JSON object with the structure below. Each description explains WHERE the field is and WHAT its value looks like.');
+    lines.push('');
+    lines.push('{');
+
+    const sections = Object.keys(FIELD_SCHEMA);
+    sections.forEach((section, si) => {
+      lines.push(`  "${section}": {`);
+      const fields = Object.keys(FIELD_SCHEMA[section]);
+      fields.forEach((field, fi) => {
+        const def = FIELD_SCHEMA[section][field];
+        const comma = fi < fields.length - 1 ? ',' : '';
+        lines.push(`    "${field}": {`);
+        lines.push(`      "type": "${def.type}",`);
+        lines.push(`      "description": ${JSON.stringify(def.description)}`);
+        lines.push(`    }${comma}`);
+      });
+      const sComma = si < sections.length - 1 ? ',' : '';
+      lines.push(`  }${sComma}`);
+    });
+
+    lines.push('}');
+    lines.push('');
+    lines.push('Return ONLY the JSON object. No markdown fences, no explanations.');
+
+    return lines.join('\n');
+  }
+
+  // ============================================================
+  //  Format validation rules (post-extraction sanity check)
+  //  If a value doesn't match its expected pattern, mark it.
+  // ============================================================
+  const FORMAT_RULES = {
+    'section_1.codigo_conjunto': {
+      test: v => /^4[0-9A-Z\s\/\-]{6,}$/i.test(v.trim()),
+      hint: 'Expected a long code starting with "4"'
+    },
+    'section_1.codigo_componente': {
+      test: v => /[A-Za-z]/.test(v) && v.trim().length >= 4,
+      hint: 'Expected a text description like "Pilar B/Sup/Der"'
+    },
+    'section_1.codigo_rechaz': {
+      test: v => /^[0-9]{3,5}[A-Z]?$/i.test(v.trim()),
+      hint: 'Expected a short numeric code like "2216"'
+    },
+    'section_1.cantidad': {
+      test: v => /^[0-9]{1,3}$/.test(v.trim()),
+      hint: 'Expected a small number like "2"'
+    },
+    'section_2.motivo_rechace': {
+      test: v => /^[0-9]{3,5}(\s?[A-Z])?$/i.test(v.trim()),
+      hint: 'Expected a code like "2216 D"'
+    },
+    'section_2.fecha': {
+      test: v => /^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}$/.test(v.trim()),
+      hint: 'Expected a date like "22/4/26"'
+    },
+    'section_2.operario': {
+      test: v => /^[0-9]{2,6}$/.test(v.trim()),
+      hint: 'Expected a numeric ID like "897"'
+    }
+  };
+
+  function checkFormat(path, value) {
+    const rule = FORMAT_RULES[path];
+    if (!rule) return 'ok';
+    if (value === null || value === undefined || String(value).trim() === '') return 'missing';
+    const s = String(value).trim();
+    try {
+      return rule.test(s) ? 'ok' : 'format-mismatch';
+    } catch (e) {
+      return 'ok';
+    }
+  }
+
+  // ============================================================
+  //  Main flow
+  // ============================================================
   extractBtn.addEventListener('click', async () => {
     if (isRunning) return;
     const apiKey = apiKeyInput.value.trim();
@@ -516,7 +678,6 @@
     updateButtonState();
   });
 
-  // ---------- Build _file value ----------
   function buildFilePath(file) {
     const rawPrefix = pathPrefixInput.value || '';
     const prefix = rawPrefix.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -529,35 +690,7 @@
   async function extractOne(file, apiKey) {
     const base64 = await fileToBase64(file);
     const mimeType = file.type;
-
-    const prompt = `You are a data extraction assistant. Extract all information from this EBRO Factory "Control Calidad" form image.
-Return a valid JSON object with the structure below. If a field is empty or illegible, use null.
-
-{
-  "header": {
-    "company": "string",
-    "document_type": "string",
-    "red_number": "string"
-  },
-  "section_1": {
-    "codigo_conjunto": "string",
-    "codigo_componente": "string",
-    "codigo_rechaz": "string",
-    "cantidad": "string",
-    "origen_area_zona": "string"
-  },
-  "section_2": {
-    "motivo_rechace": "string",
-    "fecha": "string",
-    "observaciones": "string",
-    "operario": "string"
-  },
-  "signatures": {
-    "inspector": "string",
-    "visto_bueno_calidad": "string",
-    "encargado_linea": "string"
-  }
-}`;
+    const prompt = buildPrompt();
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
     const response = await fetch(url, {
@@ -572,6 +705,8 @@ Return a valid JSON object with the structure below. If a field is empty or ille
         }],
         generationConfig: {
           responseMimeType: 'application/json',
+          temperature: 0.1,           // lower temperature = less creative drift
+          topP: 0.8,
           maxOutputTokens: 2000
         }
       })
@@ -592,7 +727,32 @@ Return a valid JSON object with the structure below. If a field is empty or ille
       .replace(/^```\s*/i, '')
       .replace(/\s*```$/, '');
 
-    return JSON.parse(cleaned);
+    // The model may have wrapped the JSON in an outer object because of the
+    // schema-style description. If so, unwrap it.
+    let parsed = JSON.parse(cleaned);
+    parsed = unwrapSchemaEcho(parsed);
+
+    return parsed;
+  }
+
+  /**
+   * Gemini sometimes echoes the schema structure and wraps values in
+   * { type, description, value } objects. This function unwraps those.
+   */
+  function unwrapSchemaEcho(obj) {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(unwrapSchemaEcho);
+
+    // If this looks like a schema leaf: { type, description, value }
+    if ('value' in obj && ('type' in obj || 'description' in obj)) {
+      return obj.value;
+    }
+
+    const out = {};
+    for (const key of Object.keys(obj)) {
+      out[key] = unwrapSchemaEcho(obj[key]);
+    }
+    return out;
   }
 
   function fileToBase64(file) {
@@ -604,7 +764,6 @@ Return a valid JSON object with the structure below. If a field is empty or ille
     });
   }
 
-  // ---------- Flatten JSON ----------
   function flattenJson(obj) {
     const flat = {};
     function walk(node, path) {
@@ -624,41 +783,32 @@ Return a valid JSON object with the structure below. If a field is empty or ille
     return flat;
   }
 
-  // ---------- Cell quality check ----------
-  /**
-   * Returns one of: 'ok' | 'missing' | 'suspicious'
-   */
+  // ---------- Cell quality ----------
   function evaluateCell(value) {
     if (value === null || value === undefined) return 'missing';
     const s = String(value).trim();
     if (s === '') return 'missing';
-    if (/^[\s]*$/.test(s)) return 'missing';
-    // Only 1 char and not a number -> suspicious
     if (s.length === 1 && !/\d/.test(s)) return 'suspicious';
-    // Contains placeholder / illegible marks
     if (/[?□■�]/.test(s)) return 'suspicious';
-    // Looks like a lone punctuation string
     if (/^[\-_.·]+$/.test(s)) return 'suspicious';
     return 'ok';
   }
 
-  // ---------- Render result table ----------
+  // ---------- Result table ----------
   function renderResultTable(tasks) {
     const rows = tasks.map(t => ({
       _file: buildFilePath(t.file),
       ...flattenJson(t.json)
     }));
 
-    // Column order: _file first, then union of all keys in insertion order
     const headerSet = new Set(['_file']);
     rows.forEach(r => Object.keys(r).forEach(k => headerSet.add(k)));
     const headers = Array.from(headerSet);
 
-    // Count issues
     let missingCount = 0;
     let suspiciousCount = 0;
+    let formatCount = 0;
 
-    // Build table HTML
     const thead = document.createElement('thead');
     const headTr = document.createElement('tr');
     headTr.innerHTML = `<th class="row-num">#</th>` +
@@ -666,13 +816,29 @@ Return a valid JSON object with the structure below. If a field is empty or ille
     thead.appendChild(headTr);
 
     const tbody = document.createElement('tbody');
+
     rows.forEach((r, i) => {
       const tr = document.createElement('tr');
-      let cellsHtml = `<td class="row-num">${i + 1}</td>`;
+      const cells = [];
+
+      cells.push(`<td class="row-num">${i + 1}</td>`);
 
       headers.forEach(h => {
         const raw = r[h];
-        const status = evaluateCell(raw);
+        let status = evaluateCell(raw);
+        let hint = '';
+
+        // Format check takes priority if the field has a rule
+        if (status === 'ok') {
+          const fStatus = checkFormat(h, raw);
+          if (fStatus === 'format-mismatch') {
+            status = 'format-mismatch';
+            hint = FORMAT_RULES[h]?.hint || 'Format does not match expected pattern';
+          } else if (fStatus === 'missing') {
+            status = 'missing';
+          }
+        }
+
         let cls = '';
         let badge = '';
         let display = raw;
@@ -681,40 +847,36 @@ Return a valid JSON object with the structure below. If a field is empty or ille
           missingCount++;
           cls = 'cell-missing';
           badge = '<span class="cell-badge">missing</span>';
-          display = raw === null || raw === undefined || String(raw).trim() === ''
-            ? '—'
-            : String(raw);
+          display = (raw === null || raw === undefined || String(raw).trim() === '') ? '—' : String(raw);
+          hint = 'Missing or null value';
         } else if (status === 'suspicious') {
           suspiciousCount++;
           cls = 'cell-suspicious';
           badge = '<span class="cell-badge">check</span>';
+          hint = 'Suspicious value — please verify';
+        } else if (status === 'format-mismatch') {
+          formatCount++;
+          cls = 'cell-format-mismatch';
+          badge = '<span class="cell-badge">format</span>';
+          hint = hint || 'Value format does not match this field';
         } else {
           display = String(raw ?? '');
         }
 
         const extraClass = h === '_file' ? ' file-cell' : '';
-        const title = status === 'missing'
-          ? 'Missing or null value'
-          : status === 'suspicious'
-            ? 'Suspicious value — please verify'
-            : '';
-
-        tr.innerHTML += `<td class="${cls}${extraClass}" title="${title}">${escapeHtml(display)}${badge}</td>`;
+        cells.push(`<td class="${cls}${extraClass}" title="${escapeHtml(hint)}">${escapeHtml(display)}${badge}</td>`);
       });
 
-      // Note: we appended via innerHTML += in a loop, which would wipe previous
-      // listeners — but we have none, so it's fine for this static table.
+      tr.innerHTML = cells.join('');
       tbody.appendChild(tr);
     });
 
-    // Assemble
     resultTable.innerHTML = '';
     resultTable.appendChild(thead);
     resultTable.appendChild(tbody);
 
-    // Banner
     const totalCells = rows.length * headers.length;
-    const totalIssues = missingCount + suspiciousCount;
+    const totalIssues = missingCount + suspiciousCount + formatCount;
     if (totalIssues === 0) {
       issuesBanner.classList.add('all-good');
       issuesBanner.textContent = `✅ All ${totalCells} fields look good — no issues detected.`;
@@ -722,7 +884,7 @@ Return a valid JSON object with the structure below. If a field is empty or ille
       issuesBanner.classList.remove('all-good');
       issuesBanner.textContent =
         `⚠️ ${totalIssues} of ${totalCells} fields need review — ` +
-        `${missingCount} missing, ${suspiciousCount} suspicious. Cells are highlighted below.`;
+        `${missingCount} missing, ${suspiciousCount} suspicious, ${formatCount} format mismatch.`;
     }
   }
 
