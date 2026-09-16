@@ -444,7 +444,7 @@
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // ============================================================
-  //  NEW: Field schema with spatial descriptions
+  //  Field schema with enhanced spatial descriptions
   //  Each field tells the model WHERE it is and WHAT it looks like.
   // ============================================================
   const FIELD_SCHEMA = {
@@ -487,33 +487,33 @@
     section_2: {
       motivo_rechace: {
         type: 'string',
-        description: 'The handwritten value in the box labeled "MOTIVO RECHACE". Usually a short code similar to "codigo_rechaz", e.g. "2216 D". Located in the LOWER HALF of the form, in the second numbered section.'
+        description: 'The rejecting code in the box labeled "MOTIVO RECHACE". Normally 4 digits, but may contain a mix of numbers and letters (e.g. "2216", "2216D", "A216"). It is NOT a date and NOT an operator ID. Located in the LOWER HALF of the form, in the second numbered section.'
       },
       fecha: {
         type: 'string',
-        description: 'The handwritten date in the box labeled "FECHA". Format is usually "DD/MM/YY" or "DD/MM/YYYY", e.g. "22/4/26". Located at the BOTTOM-LEFT of the form.'
+        description: 'The date when the record is registered, written in the box labeled "FECHA". Format is usually "DD/MM/YY" or "DD/MM/YYYY", e.g. "22/4/26". It must look like a date. Located at the BOTTOM-LEFT of the form, in the second numbered section.'
       },
       observaciones: {
         type: 'string',
-        description: 'The handwritten note in the box labeled "OBSERVACIONES". Usually a short word describing the issue, e.g. "Rápido". Located at the BOTTOM-CENTER of the form.'
+        description: 'The comments describing the issue, handwritten inside the box labeled "OBSERVACIONES". Normally a short text string (a word or phrase in Spanish), e.g. "Rápido", "Rayado", "Golpe". It is NOT a date, NOT a numeric code, NOT an operator ID. Located at the BOTTOM-CENTER of the form.'
       },
       operario: {
         type: 'string',
-        description: 'The handwritten value in the box labeled "OPERARIO". Usually a short numeric ID, e.g. "897". Located at the BOTTOM-LEFT, just below "FECHA".'
+        description: 'The operator ID handwritten inside the box labeled "OPERARIO". Normally 3 or 4 digits (e.g. "897", "1234"). It is a numeric ID, NOT a date, NOT a rejecting code. Located at the BOTTOM-LEFT, in the box directly below "FECHA".'
       }
     },
     signatures: {
       inspector: {
         type: 'string',
-        description: 'Describe whether the "INSPECTOR" box at the bottom has a handwritten signature. Use "Signed" if there is a signature, or null if empty.'
+        description: 'Whether the "INSPECTOR" box at the bottom-left has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.'
       },
       visto_bueno_calidad: {
         type: 'string',
-        description: 'Describe whether the "Vº Bº C. CALIDAD" box at the bottom has a handwritten signature. Use "Signed" if there is a signature, or null if empty.'
+        description: 'Whether the "Vº Bº C. CALIDAD" box at the bottom-center has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.'
       },
       encargado_linea: {
         type: 'string',
-        description: 'Describe whether the "ENCARGADO LÍNEA" box at the bottom has a handwritten signature. Use "Signed" if there is a signature, or null if empty.'
+        description: 'Whether the "ENCARGADO LÍNEA" box at the bottom-right has a handwritten signature. Return exactly "Signed" if there is a signature, or "Not Signed" if the box is empty.'
       }
     }
   };
@@ -524,11 +524,13 @@
     lines.push('You are a data extraction assistant. Extract all information from this EBRO Factory "Control Calidad" form image.');
     lines.push('');
     lines.push('CRITICAL RULES:');
-    lines.push('1. Each field description tells you EXACTLY where the label is on the form.');
+    lines.push('1. Each field description tells you EXACTLY where the label is on the form and what its value should look like.');
     lines.push('2. Match the value based on SPATIAL PROXIMITY: the value must be inside or directly next to the box described by the label.');
     lines.push('3. Do NOT assign a value to a field if that value is visually closer to a different label.');
-    lines.push('4. For handwritten values, transcribe exactly what you see. Preserve spaces and separators.');
-    lines.push('5. If a field is empty or truly illegible, use null.');
+    lines.push('4. Do NOT confuse similar-looking fields (e.g. fecha vs operario vs motivo_rechace). Read each field\'s description carefully.');
+    lines.push('5. For handwritten values, transcribe exactly what you see. Preserve spaces and separators.');
+    lines.push('6. For signature fields, return exactly "Signed" or "Not Signed".');
+    lines.push('7. If a non-signature field is empty or truly illegible, use null.');
     lines.push('');
     lines.push('Return a valid JSON object with the structure below. Each description explains WHERE the field is and WHAT its value looks like.');
     lines.push('');
@@ -559,7 +561,6 @@
 
   // ============================================================
   //  Format validation rules (post-extraction sanity check)
-  //  If a value doesn't match its expected pattern, mark it.
   // ============================================================
   const FORMAT_RULES = {
     'section_1.codigo_conjunto': {
@@ -579,16 +580,32 @@
       hint: 'Expected a small number like "2"'
     },
     'section_2.motivo_rechace': {
-      test: v => /^[0-9]{3,5}(\s?[A-Z])?$/i.test(v.trim()),
-      hint: 'Expected a code like "2216 D"'
+      test: v => /^[0-9A-Z]{3,5}$/i.test(v.replace(/\s+/g, '')),
+      hint: 'Expected a 3-5 character rejecting code (digits and/or letters)'
     },
     'section_2.fecha': {
       test: v => /^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}$/.test(v.trim()),
       hint: 'Expected a date like "22/4/26"'
     },
     'section_2.operario': {
-      test: v => /^[0-9]{2,6}$/.test(v.trim()),
-      hint: 'Expected a numeric ID like "897"'
+      test: v => /^[0-9]{3,4}$/.test(v.trim()),
+      hint: 'Expected a 3 or 4 digit operator ID'
+    },
+    'section_2.observaciones': {
+      test: v => /[A-Za-zÀ-ÿ]/.test(v) && !/^\d+$/.test(v.trim()),
+      hint: 'Expected a text comment, not a number'
+    },
+    'signatures.inspector': {
+      test: v => /^(Signed|Not Signed)$/i.test(v.trim()),
+      hint: 'Expected "Signed" or "Not Signed"'
+    },
+    'signatures.visto_bueno_calidad': {
+      test: v => /^(Signed|Not Signed)$/i.test(v.trim()),
+      hint: 'Expected "Signed" or "Not Signed"'
+    },
+    'signatures.encargado_linea': {
+      test: v => /^(Signed|Not Signed)$/i.test(v.trim()),
+      hint: 'Expected "Signed" or "Not Signed"'
     }
   };
 
@@ -705,7 +722,7 @@
         }],
         generationConfig: {
           responseMimeType: 'application/json',
-          temperature: 0.1,           // lower temperature = less creative drift
+          temperature: 0.1,
           topP: 0.8,
           maxOutputTokens: 2000
         }
@@ -727,10 +744,9 @@
       .replace(/^```\s*/i, '')
       .replace(/\s*```$/, '');
 
-    // The model may have wrapped the JSON in an outer object because of the
-    // schema-style description. If so, unwrap it.
     let parsed = JSON.parse(cleaned);
     parsed = unwrapSchemaEcho(parsed);
+    parsed = normalizeSignatures(parsed);
 
     return parsed;
   }
@@ -743,7 +759,6 @@
     if (obj === null || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) return obj.map(unwrapSchemaEcho);
 
-    // If this looks like a schema leaf: { type, description, value }
     if ('value' in obj && ('type' in obj || 'description' in obj)) {
       return obj.value;
     }
@@ -753,6 +768,38 @@
       out[key] = unwrapSchemaEcho(obj[key]);
     }
     return out;
+  }
+
+  /**
+   * Normalize signature fields to exactly "Signed" or "Not Signed".
+   */
+  function normalizeSignatures(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (!obj.signatures || typeof obj.signatures !== 'object') return obj;
+
+    const sig = obj.signatures;
+    ['inspector', 'visto_bueno_calidad', 'encargado_linea'].forEach(key => {
+      const raw = sig[key];
+      if (raw === null || raw === undefined) {
+        sig[key] = 'Not Signed';
+        return;
+      }
+      const s = String(raw).trim().toLowerCase();
+      if (s === 'signed' || s === 'yes' || s === 'true' || s === 'signature' || s === 'signed.') {
+        sig[key] = 'Signed';
+      } else if (s === 'not signed' || s === 'no' || s === 'false' || s === 'empty' || s === 'unsigned') {
+        sig[key] = 'Not Signed';
+      } else {
+        // If it's a description that mentions "signature" but not "not"
+        if (/sign/i.test(s) && !/not|no |empty|blank/i.test(s)) {
+          sig[key] = 'Signed';
+        } else {
+          sig[key] = 'Not Signed';
+        }
+      }
+    });
+
+    return obj;
   }
 
   function fileToBase64(file) {
@@ -828,7 +875,6 @@
         let status = evaluateCell(raw);
         let hint = '';
 
-        // Format check takes priority if the field has a rule
         if (status === 'ok') {
           const fStatus = checkFormat(h, raw);
           if (fStatus === 'format-mismatch') {
