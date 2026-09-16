@@ -122,15 +122,109 @@
     font-size: 13px; color: #084298;
   }
 
-  .json-section { display: none; }
-  pre {
-    background: #1e1e1e; color: #d4d4d4; padding: 16px;
-    border-radius: 8px; overflow-x: auto; font-size: 12px;
-    line-height: 1.6; max-height: 400px; overflow-y: auto;
+  /* ---- Results table ---- */
+  .result-section { display: none; }
+  .result-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; flex-wrap: wrap; gap: 12px;
   }
-  .json-key { color: #9cdcfe; }
-  .json-string { color: #ce9178; }
-  .json-null { color: #569cd6; }
+  .result-header h2 { font-size: 18px; }
+
+  .issues-banner {
+    padding: 10px 14px;
+    background: #fff3cd;
+    border: 1px solid #ffe69c;
+    color: #664d03;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .issues-banner.all-good {
+    background: #d1e7dd;
+    border-color: #a3cfbb;
+    color: #0f5132;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    max-height: 600px;
+    overflow-y: auto;
+  }
+  table.result-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  table.result-table th,
+  table.result-table td {
+    border: 1px solid #eee;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  table.result-table thead th {
+    position: sticky; top: 0;
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #333;
+    z-index: 2;
+    border-bottom: 2px solid #dee2e6;
+  }
+  table.result-table tbody tr:hover { background: #f8fbff; }
+  table.result-table td.row-num {
+    background: #f8f9fa;
+    color: #888;
+    text-align: center;
+    width: 40px;
+    font-variant-numeric: tabular-nums;
+  }
+  table.result-table td.file-cell {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    color: #0b5ed7;
+    max-width: 320px;
+  }
+
+  /* Red flags */
+  td.cell-missing {
+    background: #f8d7da !important;
+    color: #842029 !important;
+    font-style: italic;
+  }
+  td.cell-suspicious {
+    background: #fff3cd !important;
+    color: #664d03 !important;
+  }
+  .cell-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: 4px;
+    vertical-align: middle;
+    font-style: normal;
+  }
+  .cell-missing .cell-badge { background: #f1aeb5; color: #58151c; }
+  .cell-suspicious .cell-badge { background: #ffda6a; color: #664d03; }
+
+  .legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    font-size: 12px; color: #666;
+    margin-top: 10px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .dot {
+    width: 12px; height: 12px; border-radius: 3px;
+    display: inline-block;
+  }
+  .legend .dot-missing { background: #f8d7da; border: 1px solid #f1aeb5; }
+  .legend .dot-suspicious { background: #fff3cd; border: 1px solid #ffe69c; }
 </style>
 </head>
 <body>
@@ -146,7 +240,6 @@
       <p class="hint">No key yet? Get one free at <a href="https://aistudio.google.com" target="_blank">Google AI Studio</a></p>
     </div>
 
-    <!-- Source path prefix -->
     <div class="field" style="margin-bottom: 0;">
       <label for="pathPrefix">Source Path Prefix (prepended to the <code>_file</code> column)</label>
       <input type="text" id="pathPrefix" value="c/download/" placeholder="e.g. c/download/" />
@@ -182,9 +275,21 @@
   </div>
 
   <!-- Results -->
-  <div class="card json-section" id="jsonSection">
-    <h2 style="font-size: 18px; margin-bottom: 12px;">✅ Extraction Preview</h2>
-    <pre id="jsonOutput"></pre>
+  <div class="card result-section" id="resultSection">
+    <div class="result-header">
+      <h2>✅ Extraction Results</h2>
+    </div>
+
+    <div class="issues-banner" id="issuesBanner"></div>
+
+    <div class="table-wrap">
+      <table class="result-table" id="resultTable"></table>
+    </div>
+
+    <div class="legend">
+      <span><i class="dot dot-missing"></i> Missing / null value — needs review</span>
+      <span><i class="dot dot-suspicious"></i> Suspicious value — double-check</span>
+    </div>
 
     <div class="button-row">
       <button class="btn btn-excel" id="downloadExcelBtn">📊 Download Merged Excel</button>
@@ -210,8 +315,9 @@
   const progressWrap = document.getElementById('progressWrap');
   const progressBar = document.getElementById('progressBar');
   const summaryEl = document.getElementById('summary');
-  const jsonSection = document.getElementById('jsonSection');
-  const jsonOutput = document.getElementById('jsonOutput');
+  const resultSection = document.getElementById('resultSection');
+  const issuesBanner = document.getElementById('issuesBanner');
+  const resultTable = document.getElementById('resultTable');
   const downloadExcelBtn = document.getElementById('downloadExcelBtn');
   const downloadJsonBtn = document.getElementById('downloadJsonBtn');
 
@@ -219,7 +325,6 @@
   let isRunning = false;
   let idCounter = 0;
 
-  // Restore saved values
   const savedKey = localStorage.getItem(API_KEY_STORAGE);
   if (savedKey) apiKeyInput.value = savedKey;
 
@@ -230,7 +335,6 @@
     localStorage.setItem(API_KEY_STORAGE, apiKeyInput.value.trim());
     updateButtonState();
   });
-
   pathPrefixInput.addEventListener('input', () => {
     localStorage.setItem(PATH_PREFIX_STORAGE, pathPrefixInput.value);
   });
@@ -329,47 +433,37 @@
       const now = Date.now();
       const windowStart = now - 60_000;
       this.timestamps = this.timestamps.filter(t => t > windowStart);
-
       if (this.timestamps.length >= RATE_LIMIT_PER_MIN) {
         const oldest = this.timestamps[0];
         const waitMs = oldest + 60_000 - now + 200;
         await sleep(waitMs);
         return this.wait();
       }
-
       this.timestamps.push(Date.now());
     }
   };
-
-  function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms));
-  }
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // ---------- Main flow ----------
   extractBtn.addEventListener('click', async () => {
     if (isRunning) return;
     const apiKey = apiKeyInput.value.trim();
     if (!apiKey) return;
-
     const pending = queue.filter(t => t.status === 'waiting');
     if (!pending.length) return;
 
     isRunning = true;
     updateButtonState();
-    jsonSection.style.display = 'none';
+    resultSection.style.display = 'none';
     progressWrap.style.display = 'block';
     summaryEl.style.display = 'none';
 
-    let done = 0;
-    let success = 0;
-    let failed = 0;
+    let done = 0, success = 0, failed = 0;
 
     for (const task of pending) {
       if (task.status === 'cancelled') continue;
-
       task.status = 'processing';
       renderQueue();
-
       try {
         await rateLimiter.wait();
         const json = await extractOne(task.file, apiKey);
@@ -382,7 +476,6 @@
         task.status = 'error';
         failed++;
       }
-
       done++;
       progressBar.style.width = `${(done / pending.length) * 100}%`;
       renderQueue();
@@ -395,25 +488,19 @@
     summaryEl.style.display = 'block';
     summaryEl.innerHTML = `✅ Succeeded: ${success} · ❌ Failed: ${failed} · Total: ${pending.length}`;
 
-    const successTasks = queue.filter(t => t.status === 'success');
+    const successTasks = queue.filter(t => t.status === 'success' && t.json);
     if (successTasks.length) {
-      jsonOutput.innerHTML = syntaxHighlight(successTasks.map(t => ({
-        _file: buildFilePath(t.file),
-        ...t.json
-      })));
-      jsonSection.style.display = 'block';
+      renderResultTable(successTasks);
+      resultSection.style.display = 'block';
       showStatus(`🎉 Done. Succeeded: ${success}, Failed: ${failed}.`, success ? 'success' : 'error');
     } else {
       showStatus('❌ All failed. Check your API Key or network.', 'error');
     }
   });
 
-  // Clear
   clearBtn.addEventListener('click', () => {
     if (isRunning) {
-      queue.forEach(t => {
-        if (t.status === 'waiting') t.status = 'cancelled';
-      });
+      queue.forEach(t => { if (t.status === 'waiting') t.status = 'cancelled'; });
       renderQueue();
       updateButtonState();
       return;
@@ -424,29 +511,17 @@
     progressWrap.style.display = 'none';
     progressBar.style.width = '0%';
     summaryEl.style.display = 'none';
-    jsonSection.style.display = 'none';
+    resultSection.style.display = 'none';
     showStatus('');
     updateButtonState();
   });
 
   // ---------- Build _file value ----------
-  /**
-   * Build the value used in the `_file` column.
-   * Priority:
-   *   1. If the user set a path prefix, use `${prefix}${file.name}` (normalize slashes).
-   *   2. Else if the browser provides webkitRelativePath (folder upload), use that.
-   *   3. Else fall back to just file.name.
-   */
   function buildFilePath(file) {
     const rawPrefix = pathPrefixInput.value || '';
     const prefix = rawPrefix.replace(/\\/g, '/').replace(/\/+$/, '');
-
-    if (prefix) {
-      return `${prefix}/${file.name}`;
-    }
-    if (file.webkitRelativePath) {
-      return file.webkitRelativePath.replace(/\\/g, '/');
-    }
+    if (prefix) return `${prefix}/${file.name}`;
+    if (file.webkitRelativePath) return file.webkitRelativePath.replace(/\\/g, '/');
     return file.name;
   }
 
@@ -485,7 +560,6 @@ Return a valid JSON object with the structure below. If a field is empty or ille
 }`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
-
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -505,9 +579,7 @@ Return a valid JSON object with the structure below. If a field is empty or ille
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      if (response.status === 429) {
-        throw new Error('Rate limit hit (429). Please try again shortly.');
-      }
+      if (response.status === 429) throw new Error('Rate limit hit (429). Please try again shortly.');
       throw new Error(err.error?.message || `HTTP ${response.status}`);
     }
 
@@ -532,25 +604,7 @@ Return a valid JSON object with the structure below. If a field is empty or ille
     });
   }
 
-  // ---------- JSON highlighting ----------
-  function syntaxHighlight(obj) {
-    let json = JSON.stringify(obj, null, 2);
-    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return json.replace(
-      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
-      (match) => {
-        let cls = 'json-string';
-        if (/^"/.test(match)) {
-          if (/:$/.test(match)) cls = 'json-key';
-        } else if (/null/.test(match)) {
-          cls = 'json-null';
-        }
-        return `<span class="${cls}">${match}</span>`;
-      }
-    );
-  }
-
-  // ---------- Merged Excel ----------
+  // ---------- Flatten JSON ----------
   function flattenJson(obj) {
     const flat = {};
     function walk(node, path) {
@@ -570,36 +624,131 @@ Return a valid JSON object with the structure below. If a field is empty or ille
     return flat;
   }
 
+  // ---------- Cell quality check ----------
+  /**
+   * Returns one of: 'ok' | 'missing' | 'suspicious'
+   */
+  function evaluateCell(value) {
+    if (value === null || value === undefined) return 'missing';
+    const s = String(value).trim();
+    if (s === '') return 'missing';
+    if (/^[\s]*$/.test(s)) return 'missing';
+    // Only 1 char and not a number -> suspicious
+    if (s.length === 1 && !/\d/.test(s)) return 'suspicious';
+    // Contains placeholder / illegible marks
+    if (/[?□■�]/.test(s)) return 'suspicious';
+    // Looks like a lone punctuation string
+    if (/^[\-_.·]+$/.test(s)) return 'suspicious';
+    return 'ok';
+  }
+
+  // ---------- Render result table ----------
+  function renderResultTable(tasks) {
+    const rows = tasks.map(t => ({
+      _file: buildFilePath(t.file),
+      ...flattenJson(t.json)
+    }));
+
+    // Column order: _file first, then union of all keys in insertion order
+    const headerSet = new Set(['_file']);
+    rows.forEach(r => Object.keys(r).forEach(k => headerSet.add(k)));
+    const headers = Array.from(headerSet);
+
+    // Count issues
+    let missingCount = 0;
+    let suspiciousCount = 0;
+
+    // Build table HTML
+    const thead = document.createElement('thead');
+    const headTr = document.createElement('tr');
+    headTr.innerHTML = `<th class="row-num">#</th>` +
+      headers.map(h => `<th title="${escapeHtml(h)}">${escapeHtml(h)}</th>`).join('');
+    thead.appendChild(headTr);
+
+    const tbody = document.createElement('tbody');
+    rows.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      let cellsHtml = `<td class="row-num">${i + 1}</td>`;
+
+      headers.forEach(h => {
+        const raw = r[h];
+        const status = evaluateCell(raw);
+        let cls = '';
+        let badge = '';
+        let display = raw;
+
+        if (status === 'missing') {
+          missingCount++;
+          cls = 'cell-missing';
+          badge = '<span class="cell-badge">missing</span>';
+          display = raw === null || raw === undefined || String(raw).trim() === ''
+            ? '—'
+            : String(raw);
+        } else if (status === 'suspicious') {
+          suspiciousCount++;
+          cls = 'cell-suspicious';
+          badge = '<span class="cell-badge">check</span>';
+        } else {
+          display = String(raw ?? '');
+        }
+
+        const extraClass = h === '_file' ? ' file-cell' : '';
+        const title = status === 'missing'
+          ? 'Missing or null value'
+          : status === 'suspicious'
+            ? 'Suspicious value — please verify'
+            : '';
+
+        tr.innerHTML += `<td class="${cls}${extraClass}" title="${title}">${escapeHtml(display)}${badge}</td>`;
+      });
+
+      // Note: we appended via innerHTML += in a loop, which would wipe previous
+      // listeners — but we have none, so it's fine for this static table.
+      tbody.appendChild(tr);
+    });
+
+    // Assemble
+    resultTable.innerHTML = '';
+    resultTable.appendChild(thead);
+    resultTable.appendChild(tbody);
+
+    // Banner
+    const totalCells = rows.length * headers.length;
+    const totalIssues = missingCount + suspiciousCount;
+    if (totalIssues === 0) {
+      issuesBanner.classList.add('all-good');
+      issuesBanner.textContent = `✅ All ${totalCells} fields look good — no issues detected.`;
+    } else {
+      issuesBanner.classList.remove('all-good');
+      issuesBanner.textContent =
+        `⚠️ ${totalIssues} of ${totalCells} fields need review — ` +
+        `${missingCount} missing, ${suspiciousCount} suspicious. Cells are highlighted below.`;
+    }
+  }
+
+  // ---------- Downloads ----------
   downloadExcelBtn.addEventListener('click', () => {
     const successTasks = queue.filter(t => t.status === 'success' && t.json);
     if (!successTasks.length) {
       showStatus('No successful results to export.', 'error');
       return;
     }
-
     const rows = successTasks.map(t => ({
       _file: buildFilePath(t.file),
       ...flattenJson(t.json)
     }));
-
     const headerSet = new Set(['_file']);
     rows.forEach(r => Object.keys(r).forEach(k => headerSet.add(k)));
     const headers = Array.from(headerSet);
 
-    const aoa = [
-      headers,
-      ...rows.map(r => headers.map(h => r[h] ?? ''))
-    ];
-
+    const aoa = [headers, ...rows.map(r => headers.map(h => r[h] ?? ''))];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = headers.map(h => ({ wch: h === '_file' ? 40 : 22 }));
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'EBRO Merged');
-
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     XLSX.writeFile(wb, `ebro-batch-${timestamp}.xlsx`);
-
     showStatus(`📊 Exported ${rows.length} row(s).`, 'success');
   });
 
