@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EBRO 表单提取器 · 批量版</title>
+<title>EBRO Form Extractor · Batch</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -26,12 +26,13 @@
     margin-bottom: 20px;
   }
 
-  .api-section { margin-bottom: 20px; }
-  .api-section label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; }
-  .api-section input {
+  .field { margin-bottom: 20px; }
+  .field label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; }
+  .field input {
     width: 100%; padding: 10px 12px; border: 1px solid #ddd;
     border-radius: 8px; font-size: 14px;
   }
+  .hint { font-size: 12px; color: #999; margin-top: 6px; }
 
   .upload-area {
     border: 2px dashed #bbb;
@@ -76,7 +77,6 @@
   .status.success { color: #2e7d32; }
   .status.loading { color: #1976d2; }
 
-  /* 队列列表 */
   .queue-list { margin-top: 20px; }
   .queue-item {
     display: flex; align-items: center; gap: 12px;
@@ -135,28 +135,40 @@
 </head>
 <body>
 <div class="container">
-  <h1>📄 EBRO 表单提取器 · 批量版</h1>
-  <p class="subtitle">支持多张图片上传、自动限流（免费层 15 次/分钟）、汇总导出 Excel</p>
+  <h1>📄 EBRO Form Extractor · Batch</h1>
+  <p class="subtitle">Upload multiple images, auto rate-limited (15 req/min on free tier), export a merged Excel file.</p>
 
-  <div class="card api-section">
-    <label for="apiKey">Gemini API Key（仅本地保存，不会上传）</label>
-    <input type="password" id="apiKey" placeholder="粘贴你的 Gemini API Key..." />
-    <p style="font-size: 12px; color: #999; margin-top: 6px;">
-      还没有？前往 <a href="https://aistudio.google.com" target="_blank">Google AI Studio</a> 免费获取
-    </p>
+  <!-- API Key -->
+  <div class="card">
+    <div class="field">
+      <label for="apiKey">Gemini API Key (stored locally, never uploaded)</label>
+      <input type="password" id="apiKey" placeholder="Paste your Gemini API Key..." />
+      <p class="hint">No key yet? Get one free at <a href="https://aistudio.google.com" target="_blank">Google AI Studio</a></p>
+    </div>
+
+    <!-- Source path prefix -->
+    <div class="field" style="margin-bottom: 0;">
+      <label for="pathPrefix">Source Path Prefix (prepended to the <code>_file</code> column)</label>
+      <input type="text" id="pathPrefix" value="c/download/" placeholder="e.g. c/download/" />
+      <p class="hint">
+        Example: <code>c/download/</code> + <code>picture22.png</code> → <code>c/download/picture22.png</code>.
+        Leave empty to use the browser-provided relative path (folder uploads only).
+      </p>
+    </div>
   </div>
 
+  <!-- Upload -->
   <div class="card">
     <div class="upload-area" id="uploadArea">
       <div class="icon">📤</div>
-      <p>点击选择图片，或将多张图片拖拽到此处</p>
-      <p style="font-size: 12px; color: #999; margin-top: 4px;">支持 JPG、PNG、WEBP，可一次选多张</p>
+      <p>Click to select images, or drag &amp; drop multiple files here</p>
+      <p class="hint" style="margin-top: 4px;">Supports JPG, PNG, WEBP — multi-select allowed</p>
     </div>
     <input type="file" id="fileInput" accept="image/*" multiple style="display: none;" />
 
     <div class="button-row">
-      <button class="btn" id="extractBtn" disabled>🚀 开始批量提取</button>
-      <button class="btn btn-clear" id="clearBtn" disabled>🗑️ 清空</button>
+      <button class="btn" id="extractBtn" disabled>🚀 Start Batch Extraction</button>
+      <button class="btn btn-clear" id="clearBtn" disabled>🗑️ Clear</button>
     </div>
     <div class="status" id="status"></div>
 
@@ -169,23 +181,26 @@
     <div class="queue-list" id="queueList"></div>
   </div>
 
+  <!-- Results -->
   <div class="card json-section" id="jsonSection">
-    <h2 style="font-size: 18px; margin-bottom: 12px;">✅ 提取结果预览</h2>
+    <h2 style="font-size: 18px; margin-bottom: 12px;">✅ Extraction Preview</h2>
     <pre id="jsonOutput"></pre>
 
     <div class="button-row">
-      <button class="btn btn-excel" id="downloadExcelBtn">📊 下载汇总 Excel</button>
-      <button class="btn btn-json" id="downloadJsonBtn">⬇️ 下载汇总 JSON</button>
+      <button class="btn btn-excel" id="downloadExcelBtn">📊 Download Merged Excel</button>
+      <button class="btn btn-json" id="downloadJsonBtn">⬇️ Download Merged JSON</button>
     </div>
   </div>
 </div>
 
 <script>
   const API_KEY_STORAGE = 'gemini_api_key';
+  const PATH_PREFIX_STORAGE = 'source_path_prefix';
   const MODEL = 'gemini-3.6-flash';
-  const RATE_LIMIT_PER_MIN = 15; // 免费层每分钟 15 次
+  const RATE_LIMIT_PER_MIN = 15;
 
   const apiKeyInput = document.getElementById('apiKey');
+  const pathPrefixInput = document.getElementById('pathPrefix');
   const uploadArea = document.getElementById('uploadArea');
   const fileInput = document.getElementById('fileInput');
   const extractBtn = document.getElementById('extractBtn');
@@ -200,21 +215,27 @@
   const downloadExcelBtn = document.getElementById('downloadExcelBtn');
   const downloadJsonBtn = document.getElementById('downloadJsonBtn');
 
-  // 队列：每个任务 { id, file, previewUrl, status, json, error }
   let queue = [];
   let isRunning = false;
   let idCounter = 0;
 
-  // 恢复 API Key
+  // Restore saved values
   const savedKey = localStorage.getItem(API_KEY_STORAGE);
   if (savedKey) apiKeyInput.value = savedKey;
+
+  const savedPrefix = localStorage.getItem(PATH_PREFIX_STORAGE);
+  if (savedPrefix !== null) pathPrefixInput.value = savedPrefix;
 
   apiKeyInput.addEventListener('input', () => {
     localStorage.setItem(API_KEY_STORAGE, apiKeyInput.value.trim());
     updateButtonState();
   });
 
-  // ---------- 上传交互 ----------
+  pathPrefixInput.addEventListener('input', () => {
+    localStorage.setItem(PATH_PREFIX_STORAGE, pathPrefixInput.value);
+  });
+
+  // ---------- Upload ----------
   uploadArea.addEventListener('click', () => fileInput.click());
   uploadArea.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -231,14 +252,14 @@
   fileInput.addEventListener('change', (e) => {
     if (e.target.files.length) {
       addFiles(e.target.files);
-      fileInput.value = ''; // 允许重复选同一文件
+      fileInput.value = '';
     }
   });
 
   function addFiles(files) {
     const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
     if (!imageFiles.length) {
-      showStatus('请选择图片文件', 'error');
+      showStatus('Please select image files.', 'error');
       return;
     }
     imageFiles.forEach(file => {
@@ -246,14 +267,14 @@
         id: ++idCounter,
         file,
         previewUrl: URL.createObjectURL(file),
-        status: 'waiting', // waiting | processing | success | error | cancelled
+        status: 'waiting',
         json: null,
         error: null,
       });
     });
     renderQueue();
     updateButtonState();
-    showStatus(`已添加 ${imageFiles.length} 张图片，共 ${queue.length} 张`, 'success');
+    showStatus(`Added ${imageFiles.length} image(s). Total: ${queue.length}.`, 'success');
   }
 
   function updateButtonState() {
@@ -267,7 +288,7 @@
     statusEl.className = 'status ' + type;
   }
 
-  // ---------- 渲染队列 ----------
+  // ---------- Queue rendering ----------
   function renderQueue() {
     queueList.innerHTML = '';
     queue.forEach(task => {
@@ -287,11 +308,11 @@
 
   function statusLabel(s) {
     return {
-      waiting: '等待中',
-      processing: '处理中',
-      success: '成功',
-      error: '失败',
-      cancelled: '已取消',
+      waiting: 'Waiting',
+      processing: 'Processing',
+      success: 'Success',
+      error: 'Failed',
+      cancelled: 'Cancelled',
     }[s] || s;
   }
 
@@ -301,24 +322,19 @@
     }[c]));
   }
 
-  // ---------- 限流器 ----------
-  /**
-   * 维护最近 60 秒的请求时间戳。
-   * 发请求前如果窗口已满，就等到最老的请求过期。
-   */
+  // ---------- Rate limiter ----------
   const rateLimiter = {
     timestamps: [],
     async wait() {
       const now = Date.now();
       const windowStart = now - 60_000;
-      // 清掉 60 秒前的时间戳
       this.timestamps = this.timestamps.filter(t => t > windowStart);
 
       if (this.timestamps.length >= RATE_LIMIT_PER_MIN) {
         const oldest = this.timestamps[0];
-        const waitMs = oldest + 60_000 - now + 200; // 多等 200ms 保险
+        const waitMs = oldest + 60_000 - now + 200;
         await sleep(waitMs);
-        return this.wait(); // 递归重新检查
+        return this.wait();
       }
 
       this.timestamps.push(Date.now());
@@ -329,7 +345,7 @@
     return new Promise(r => setTimeout(r, ms));
   }
 
-  // ---------- 主流程 ----------
+  // ---------- Main flow ----------
   extractBtn.addEventListener('click', async () => {
     if (isRunning) return;
     const apiKey = apiKeyInput.value.trim();
@@ -349,21 +365,20 @@
     let failed = 0;
 
     for (const task of pending) {
-      // 检查是否被中途取消（清空）
       if (task.status === 'cancelled') continue;
 
       task.status = 'processing';
       renderQueue();
 
       try {
-        await rateLimiter.wait(); // 限流：必要时自动等待
+        await rateLimiter.wait();
         const json = await extractOne(task.file, apiKey);
         task.json = json;
         task.status = 'success';
         success++;
       } catch (err) {
         console.error(task.file.name, err);
-        task.error = err.message || '未知错误';
+        task.error = err.message || 'Unknown error';
         task.status = 'error';
         failed++;
       }
@@ -377,27 +392,25 @@
     isRunning = false;
     updateButtonState();
 
-    // 汇总显示
     summaryEl.style.display = 'block';
-    summaryEl.innerHTML = `✅ 成功 ${success} 张 · ❌ 失败 ${failed} 张 · 共 ${pending.length} 张`;
+    summaryEl.innerHTML = `✅ Succeeded: ${success} · ❌ Failed: ${failed} · Total: ${pending.length}`;
 
     const successTasks = queue.filter(t => t.status === 'success');
     if (successTasks.length) {
       jsonOutput.innerHTML = syntaxHighlight(successTasks.map(t => ({
-        _file: t.file.name,
+        _file: buildFilePath(t.file),
         ...t.json
       })));
       jsonSection.style.display = 'block';
-      showStatus(`🎉 完成！成功 ${success} 张，失败 ${failed} 张`, success ? 'success' : 'error');
+      showStatus(`🎉 Done. Succeeded: ${success}, Failed: ${failed}.`, success ? 'success' : 'error');
     } else {
-      showStatus('❌ 全部失败，请检查 API Key 或网络', 'error');
+      showStatus('❌ All failed. Check your API Key or network.', 'error');
     }
   });
 
-  // 清空
+  // Clear
   clearBtn.addEventListener('click', () => {
     if (isRunning) {
-      // 运行中：标记取消
       queue.forEach(t => {
         if (t.status === 'waiting') t.status = 'cancelled';
       });
@@ -416,13 +429,34 @@
     updateButtonState();
   });
 
-  // ---------- 调用 Gemini ----------
+  // ---------- Build _file value ----------
+  /**
+   * Build the value used in the `_file` column.
+   * Priority:
+   *   1. If the user set a path prefix, use `${prefix}${file.name}` (normalize slashes).
+   *   2. Else if the browser provides webkitRelativePath (folder upload), use that.
+   *   3. Else fall back to just file.name.
+   */
+  function buildFilePath(file) {
+    const rawPrefix = pathPrefixInput.value || '';
+    const prefix = rawPrefix.replace(/\\/g, '/').replace(/\/+$/, '');
+
+    if (prefix) {
+      return `${prefix}/${file.name}`;
+    }
+    if (file.webkitRelativePath) {
+      return file.webkitRelativePath.replace(/\\/g, '/');
+    }
+    return file.name;
+  }
+
+  // ---------- Gemini call ----------
   async function extractOne(file, apiKey) {
     const base64 = await fileToBase64(file);
     const mimeType = file.type;
 
-    const prompt = `你是一个数据提取助手。请从这张 EBRO Factory "Control Calidad" 表单图片中提取所有信息。
-返回一个有效的 JSON 对象，结构如下。如果字段为空或无法识别，使用 null。
+    const prompt = `You are a data extraction assistant. Extract all information from this EBRO Factory "Control Calidad" form image.
+Return a valid JSON object with the structure below. If a field is empty or illegible, use null.
 
 {
   "header": {
@@ -471,16 +505,15 @@
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      // 429 单独提示
       if (response.status === 429) {
-        throw new Error('触发频率限制（429），请稍后再试');
+        throw new Error('Rate limit hit (429). Please try again shortly.');
       }
       throw new Error(err.error?.message || `HTTP ${response.status}`);
     }
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error('Gemini 未返回有效内容');
+    if (!text) throw new Error('Gemini returned no content.');
 
     let cleaned = text.trim()
       .replace(/^```json\s*/i, '')
@@ -499,7 +532,7 @@
     });
   }
 
-  // ---------- JSON 高亮 ----------
+  // ---------- JSON highlighting ----------
   function syntaxHighlight(obj) {
     let json = JSON.stringify(obj, null, 2);
     json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -517,7 +550,7 @@
     );
   }
 
-  // ---------- 汇总 Excel ----------
+  // ---------- Merged Excel ----------
   function flattenJson(obj) {
     const flat = {};
     function walk(node, path) {
@@ -540,46 +573,43 @@
   downloadExcelBtn.addEventListener('click', () => {
     const successTasks = queue.filter(t => t.status === 'success' && t.json);
     if (!successTasks.length) {
-      showStatus('没有可导出的成功结果', 'error');
+      showStatus('No successful results to export.', 'error');
       return;
     }
 
-    // 每张表单一行：{ _file, ...flattened }
     const rows = successTasks.map(t => ({
-      _file: t.file.name,
+      _file: buildFilePath(t.file),
       ...flattenJson(t.json)
     }));
 
-    // 收集所有列（保持第一次出现顺序，_file 放最前）
     const headerSet = new Set(['_file']);
     rows.forEach(r => Object.keys(r).forEach(k => headerSet.add(k)));
     const headers = Array.from(headerSet);
 
-    // 生成二维数组：表头 + 数据行
     const aoa = [
       headers,
       ...rows.map(r => headers.map(h => r[h] ?? ''))
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = headers.map(h => ({ wch: h === '_file' ? 30 : 22 }));
+    ws['!cols'] = headers.map(h => ({ wch: h === '_file' ? 40 : 22 }));
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'EBRO汇总');
+    XLSX.utils.book_append_sheet(wb, ws, 'EBRO Merged');
 
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     XLSX.writeFile(wb, `ebro-batch-${timestamp}.xlsx`);
 
-    showStatus(`📊 已导出 ${rows.length} 行`, 'success');
+    showStatus(`📊 Exported ${rows.length} row(s).`, 'success');
   });
 
   downloadJsonBtn.addEventListener('click', () => {
     const successTasks = queue.filter(t => t.status === 'success' && t.json);
     if (!successTasks.length) {
-      showStatus('没有可导出的成功结果', 'error');
+      showStatus('No successful results to export.', 'error');
       return;
     }
-    const out = successTasks.map(t => ({ _file: t.file.name, ...t.json }));
+    const out = successTasks.map(t => ({ _file: buildFilePath(t.file), ...t.json }));
     const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -588,7 +618,7 @@
     a.download = `ebro-batch-${timestamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showStatus('⬇️ JSON 已下载', 'success');
+    showStatus('⬇️ JSON downloaded.', 'success');
   });
 </script>
 </body>
