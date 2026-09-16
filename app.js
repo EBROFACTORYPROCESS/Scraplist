@@ -1144,7 +1144,8 @@ function renderEditFields(task) {
 
       const label = document.createElement('label');
       label.htmlFor = `edit-${path}`;
-      label.innerHTML = escapeHtml(path) +
+      label.title = path; // full path as tooltip
+      label.innerHTML = escapeHtml(getDisplayHeader(path)) +
         (hint ? `<span class="field-hint">${escapeHtml(hint)}</span>` : '');
       fieldEl.appendChild(label);
 
