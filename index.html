@@ -51,6 +51,46 @@
   .platform-badge.gemini { background: #e3f2fd; color: #0d47a1; }
   .platform-badge.deepseek { background: #fff3e0; color: #e65100; }
 
+  #balancePanel {
+    display: none;
+    margin-top: 12px;
+    padding: 12px;
+    background: #f0f9f4;
+    border: 1px solid #a3cfbb;
+    border-radius: 8px;
+  }
+  #balancePanel .balance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  #balancePanel .balance-title {
+    font-size: 13px;
+    color: #0f5132;
+    font-weight: 600;
+  }
+  #refreshBalanceBtn {
+    background: #217346;
+    color: #fff;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  #refreshBalanceBtn:hover { background: #1a5c38; }
+  #refreshBalanceBtn:disabled { background: #ccc; cursor: not-allowed; }
+  #balanceContent { font-size: 13px; color: #333; }
+  .balance-row {
+    display: flex; justify-content: space-between;
+    padding: 3px 0;
+  }
+  .balance-row .label { color: #555; }
+  .balance-row .value { font-weight: 600; color: #0f5132; }
+  .balance-row.sub { font-size: 12px; color: #666; }
+  .balance-row.sub .value { font-weight: 400; color: #666; }
+
   .upload-area {
     border: 2px dashed #bbb;
     border-radius: 12px;
@@ -545,6 +585,15 @@
       </div>
     </div>
 
+    <!-- DeepSeek Balance Panel -->
+    <div id="balancePanel">
+      <div class="balance-header">
+        <span class="balance-title">💳 DeepSeek Account Balance</span>
+        <button id="refreshBalanceBtn">↻ Refresh</button>
+      </div>
+      <div id="balanceContent">Enter your API Key to check balance.</div>
+    </div>
+
     <div class="field-row">
       <div class="field">
         <label for="pathPrefix">Source Path Prefix (prepended to the <code>_file</code> column)</label>
@@ -661,7 +710,7 @@
 
 <script>
   const PLATFORM_STORAGE = 'ai_platform';
-  const API_KEY_STORAGE_PREFIX = 'api_key_'; // + platform
+  const API_KEY_STORAGE_PREFIX = 'api_key_';
   const PATH_PREFIX_STORAGE = 'source_path_prefix';
   const MAX_SIZE_STORAGE = 'max_image_size';
   const RATE_LIMIT_PER_MIN = 15;
@@ -678,7 +727,7 @@
     },
     deepseek: {
       name: 'DeepSeek',
-      defaultModel: 'deepseek-chat', // vision-capable model may differ
+      defaultModel: 'deepseek-chat',
       endpoint: () => `https://api.deepseek.com/chat/completions`,
       keyHint: 'Get a key at platform.deepseek.com',
       placeholder: 'Paste your DeepSeek API Key...',
@@ -691,6 +740,9 @@
   const apiKeyBadge = document.getElementById('apiKeyBadge');
   const platformHint = document.getElementById('platformHint');
   const apiKeyHint = document.getElementById('apiKeyHint');
+  const balancePanel = document.getElementById('balancePanel');
+  const balanceContent = document.getElementById('balanceContent');
+  const refreshBalanceBtn = document.getElementById('refreshBalanceBtn');
   const pathPrefixInput = document.getElementById('pathPrefix');
   const maxSizeInput = document.getElementById('maxSize');
   const uploadArea = document.getElementById('uploadArea');
@@ -740,7 +792,7 @@
     fitMode: null,
   };
 
-  // ---- Platform selection handling ----
+  // ---- Platform handling ----
   function getCurrentPlatform() {
     return platformSelect.value;
   }
@@ -758,10 +810,24 @@
     apiKeyHint.textContent = cfg.keyHint;
     platformHint.textContent = `Model: ${cfg.defaultModel}`;
 
+    // Show balance panel only for DeepSeek
+    if (platform === 'deepseek') {
+      balancePanel.style.display = 'block';
+    } else {
+      balancePanel.style.display = 'none';
+    }
+
     // Load stored API key for this platform
     const stored = localStorage.getItem(getKeyStorageKey(platform));
     apiKeyInput.value = stored || '';
     updateButtonState();
+
+    // Auto-fetch balance if we have a key
+    if (platform === 'deepseek' && stored) {
+      fetchDeepSeekBalance();
+    } else if (platform === 'deepseek') {
+      balanceContent.innerHTML = 'Enter your API Key to check balance.';
+    }
   }
 
   platformSelect.addEventListener('change', () => {
@@ -773,6 +839,12 @@
     const platform = getCurrentPlatform();
     localStorage.setItem(getKeyStorageKey(platform), apiKeyInput.value.trim());
     updateButtonState();
+
+    // Auto-fetch balance for DeepSeek after user stops typing
+    if (platform === 'deepseek' && apiKeyInput.value.trim()) {
+      clearTimeout(window._balanceTimer);
+      window._balanceTimer = setTimeout(fetchDeepSeekBalance, 800);
+    }
   });
 
   const savedPlatform = localStorage.getItem(PLATFORM_STORAGE);
@@ -794,6 +866,90 @@
     localStorage.setItem(MAX_SIZE_STORAGE, maxSizeInput.value);
   });
 
+  refreshBalanceBtn.addEventListener('click', fetchDeepSeekBalance);
+
+  // ============================================================
+  //  DeepSeek Balance Check
+  // ============================================================
+  async function fetchDeepSeekBalance() {
+    if (getCurrentPlatform() !== 'deepseek') return;
+
+    const apiKey = localStorage.getItem(getKeyStorageKey('deepseek'));
+    if (!apiKey) {
+      balanceContent.innerHTML =
+        '<span style="color: #999;">Please enter your DeepSeek API Key first.</span>';
+      return;
+    }
+
+    refreshBalanceBtn.disabled = true;
+    balanceContent.innerHTML = '<span style="color: #1976d2;">Loading balance...</span>';
+
+    try {
+      const response = await fetch('https://api.deepseek.com/user/balance', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error?.message || err.message || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      renderDeepSeekBalance(data);
+    } catch (err) {
+      console.error('Balance fetch error:', err);
+      balanceContent.innerHTML =
+        `<span style="color: #d32f2f;">Failed to fetch balance: ${escapeHtml(err.message)}</span>`;
+    } finally {
+      refreshBalanceBtn.disabled = false;
+    }
+  }
+
+  function renderDeepSeekBalance(data) {
+    if (!data.is_available) {
+      balanceContent.innerHTML =
+        '<span style="color: #d32f2f;">⚠️ Balance insufficient for API calls. Please top up.</span>';
+      return;
+    }
+
+    if (!data.balance_infos || !data.balance_infos.length) {
+      balanceContent.innerHTML = '<span style="color: #999;">No balance information available.</span>';
+      return;
+    }
+
+    // Prefer USD, fall back to CNY
+    const usd = data.balance_infos.find(b => b.currency === 'USD');
+    const cny = data.balance_infos.find(b => b.currency === 'CNY');
+    const info = usd || cny;
+    const symbol = usd ? '$' : '¥';
+
+    balanceContent.innerHTML = `
+      <div class="balance-row">
+        <span class="label">Total Balance:</span>
+        <span class="value">${symbol}${info.total_balance}</span>
+      </div>
+      <div class="balance-row sub">
+        <span class="label">Granted (promotional):</span>
+        <span class="value">${symbol}${info.granted_balance}</span>
+      </div>
+      <div class="balance-row sub">
+        <span class="label">Topped-up (paid):</span>
+        <span class="value">${symbol}${info.topped_up_balance}</span>
+      </div>
+      <div class="balance-row sub" style="margin-top: 6px; border-top: 1px solid #d4e8dc; padding-top: 6px;">
+        <span class="label">Status:</span>
+        <span class="value" style="color: #0f5132;">✓ Available</span>
+      </div>
+    `;
+  }
+
+  // ============================================================
+  //  Image upload / resize
+  // ============================================================
   uploadArea.addEventListener('click', () => fileInput.click());
   uploadArea.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -814,9 +970,6 @@
     }
   });
 
-  // ============================================================
-  //  Image resize
-  // ============================================================
   function getMaxSize() {
     const v = parseInt(maxSizeInput.value, 10);
     if (!v || v < 200) return 1600;
@@ -990,7 +1143,7 @@
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // ============================================================
-  //  Field schema (added part_category)
+  //  Field schema
   // ============================================================
   const FIELD_SCHEMA = {
     header: {
@@ -1056,7 +1209,6 @@
   }
 
   function buildJsonSchema() {
-    // JSON schema describing the response shape
     const properties = {};
     const sections = Object.keys(FIELD_SCHEMA);
     sections.forEach(section => {
@@ -1072,11 +1224,7 @@
         };
       });
     });
-    return {
-      type: 'object',
-      properties,
-      required: sections
-    };
+    return { type: 'object', properties, required: sections };
   }
 
   // ============================================================
@@ -1178,6 +1326,9 @@
     isRunning = false;
     updateButtonState();
 
+    // Refresh DeepSeek balance after batch (tokens were consumed)
+    if (platform === 'deepseek') fetchDeepSeekBalance();
+
     summaryEl.style.display = 'block';
     summaryEl.innerHTML = `✅ Succeeded: ${success} · ❌ Failed: ${failed} · Total: ${tasks.length}`;
 
@@ -1230,6 +1381,8 @@
     renderQueue();
     updateButtonState();
 
+    if (platform === 'deepseek') fetchDeepSeekBalance();
+
     const successTasks = queue.filter(t => t.status === 'success' && t.json);
     if (successTasks.length) {
       renderResultTable(successTasks);
@@ -1272,7 +1425,7 @@
   }
 
   // ============================================================
-  //  AI dispatch (Gemini or DeepSeek)
+  //  AI dispatch
   // ============================================================
   async function extractOneWithRetry(task, apiKey, platform) {
     const MAX_ATTEMPTS = 3;
@@ -1286,7 +1439,7 @@
         lastErr = err;
         const msg = String(err.message || '').toLowerCase();
         const isTransient = err.transient === true ||
-          /high demand|overloaded|temporarily|try again|rate limit|503|502|504|429/.test(msg);
+          /high demand|overloaded|temporarily|try again|rate limit|503|502|504|429|insufficient/i.test(msg);
         if (!isTransient || attempt === MAX_ATTEMPTS) throw err;
 
         const waitMs = delays[attempt - 1] || 10000;
@@ -1379,7 +1532,6 @@
     const cfg = PLATFORMS.deepseek;
     const url = cfg.endpoint();
 
-    // DeepSeek uses OpenAI-compatible chat completions
     const body = {
       model: cfg.defaultModel,
       messages: [
@@ -1393,9 +1545,7 @@
             { type: 'text', text: prompt },
             {
               type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${base64}`
-              }
+              image_url: { url: `data:${mimeType};base64,${base64}` }
             }
           ]
         }
@@ -1500,8 +1650,6 @@
     }
 
     const s = String(raw).trim();
-
-    // Already exact match
     if (/^Process Scrap Parts$/i.test(s)) {
       obj.header.part_category = 'Process Scrap Parts';
       return obj;
@@ -1511,17 +1659,14 @@
       return obj;
     }
 
-    // Keyword fallback
     const lower = s.toLowerCase();
     if (/green|scrap|proceso|process|rechazo interno|internal/.test(lower)) {
       obj.header.part_category = 'Process Scrap Parts';
     } else if (/orange|supplier|proveedor|claim|reclamaci/.test(lower)) {
       obj.header.part_category = 'Supplier Claim Parts';
     } else {
-      // Keep whatever the model said, but mark as unknown
       obj.header.part_category = 'Unknown';
     }
-
     return obj;
   }
 
@@ -1612,7 +1757,6 @@
 
         let cls = '', badge = '';
 
-        // Special styling for part_category
         if (h === 'header.part_category' && status === 'ok') {
           const v = String(raw).toLowerCase();
           if (v.includes('process scrap')) {
@@ -1669,7 +1813,6 @@
     const totalCells = rows.length * headers.length;
     const totalIssues = missingCount + suspiciousCount + formatCount;
     const editedCount = rows.filter(r => r._edited).length;
-
     const scrapCount = rows.filter(r => String(r['header.part_category'] || '').includes('Process Scrap')).length;
     const supplierCount = rows.filter(r => String(r['header.part_category'] || '').includes('Supplier Claim')).length;
 
