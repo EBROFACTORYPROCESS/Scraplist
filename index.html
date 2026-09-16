@@ -14,7 +14,8 @@
     padding: 24px;
     color: #1a1a1a;
   }
-  .container { max-width: 1000px; margin: 0 auto; }
+  /* Wider container */
+  .container { max-width: 1600px; margin: 0 auto; }
   h1 { font-size: 24px; margin-bottom: 8px; }
   .subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
 
@@ -63,8 +64,6 @@
 
   .btn-excel { background: #217346; }
   .btn-excel:hover:not(:disabled) { background: #1a5c38; }
-  .btn-json { background: #6c757d; }
-  .btn-json:hover:not(:disabled) { background: #5a6268; }
   .btn-clear { background: #dc3545; }
   .btn-clear:hover:not(:disabled) { background: #b02a37; }
   .btn-retry {
@@ -165,7 +164,7 @@
     overflow-x: auto;
     border: 1px solid #e5e5e5;
     border-radius: 8px;
-    max-height: 600px;
+    max-height: 70vh;
     overflow-y: auto;
   }
   table.result-table {
@@ -180,7 +179,7 @@
     padding: 8px 10px;
     text-align: left;
     vertical-align: top;
-    max-width: 260px;
+    max-width: 320px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
@@ -206,6 +205,20 @@
     color: #0b5ed7;
     max-width: 320px;
   }
+  table.result-table td.action-cell {
+    width: 90px;
+    text-align: center;
+    background: #f8f9fa;
+  }
+  .btn-edit-row {
+    background: #4a90e2; color: #fff; border: none;
+    padding: 5px 12px; border-radius: 6px;
+    font-size: 12px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-edit-row:hover { background: #357abd; }
+  .btn-edit-row.edited { background: #217346; }
+  .btn-edit-row.edited:hover { background: #1a5c38; }
 
   td.cell-missing {
     background: #f8d7da !important;
@@ -221,6 +234,11 @@
     color: #842029 !important;
     border-left: 3px solid #dc3545 !important;
   }
+  td.cell-edited {
+    background: #d1e7dd !important;
+    color: #0f5132 !important;
+    border-left: 3px solid #217346 !important;
+  }
   .cell-badge {
     display: inline-block;
     font-size: 10px;
@@ -233,6 +251,7 @@
   .cell-missing .cell-badge { background: #f1aeb5; color: #58151c; }
   .cell-suspicious .cell-badge { background: #ffda6a; color: #664d03; }
   .cell-format-mismatch .cell-badge { background: #f1aeb5; color: #58151c; }
+  .cell-edited .cell-badge { background: #a3cfbb; color: #0f5132; }
 
   .legend {
     display: flex; gap: 16px; flex-wrap: wrap;
@@ -247,12 +266,184 @@
   .legend .dot-missing { background: #f8d7da; border: 1px solid #f1aeb5; }
   .legend .dot-suspicious { background: #fff3cd; border: 1px solid #ffe69c; }
   .legend .dot-format { background: #f8d7da; border: 1px solid #dc3545; }
+  .legend .dot-edited { background: #d1e7dd; border: 1px solid #217346; }
+
+  /* ---------- Edit Modal ---------- */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 1000;
+    padding: 24px;
+    overflow-y: auto;
+  }
+  .modal-overlay.open {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 900px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+    overflow: hidden;
+    margin: auto;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #eee;
+    background: #f8f9fa;
+  }
+  .modal-header h3 { font-size: 16px; }
+  .modal-header .file-label {
+    font-size: 12px;
+    color: #666;
+    font-family: ui-monospace, monospace;
+    margin-top: 4px;
+    word-break: break-all;
+  }
+  .modal-close {
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: #888;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+  .modal-close:hover { background: #eee; color: #333; }
+
+  .modal-body {
+    padding: 20px;
+    max-height: 65vh;
+    overflow-y: auto;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .modal-image {
+    flex: 0 0 340px;
+    max-width: 340px;
+  }
+  .modal-image img {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid #eee;
+  }
+  .modal-image .img-hint {
+    font-size: 12px;
+    color: #888;
+    margin-top: 8px;
+    text-align: center;
+  }
+  .modal-fields {
+    flex: 1;
+    min-width: 280px;
+  }
+  .edit-field {
+    margin-bottom: 14px;
+  }
+  .edit-field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 4px;
+    font-family: ui-monospace, monospace;
+  }
+  .edit-field label .field-hint {
+    font-weight: 400;
+    color: #999;
+    font-family: inherit;
+    font-size: 11px;
+    margin-left: 6px;
+  }
+  .edit-field input,
+  .edit-field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .edit-field input:focus,
+  .edit-field textarea:focus {
+    outline: 2px solid #4a90e2;
+    border-color: transparent;
+  }
+  .edit-field .original-value {
+    font-size: 11px;
+    color: #999;
+    margin-top: 4px;
+    font-family: ui-monospace, monospace;
+    word-break: break-all;
+  }
+  .edit-field.changed input,
+  .edit-field.changed textarea {
+    border-color: #217346;
+    background: #f0f9f4;
+  }
+  .edit-field.changed label::after {
+    content: ' ● edited';
+    color: #217346;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: inherit;
+  }
+  .edit-field.sig-field select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px;
+    background: #fff;
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border-top: 1px solid #eee;
+    background: #fafafa;
+    flex-wrap: wrap;
+  }
+  .modal-footer .left { display: flex; gap: 8px; flex-wrap: wrap; }
+  .modal-footer .right { display: flex; gap: 8px; }
+  .btn-modal {
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-modal-primary { background: #4a90e2; color: #fff; }
+  .btn-modal-primary:hover { background: #357abd; }
+  .btn-modal-save { background: #217346; color: #fff; }
+  .btn-modal-save:hover { background: #1a5c38; }
+  .btn-modal-cancel { background: #e9ecef; color: #333; }
+  .btn-modal-cancel:hover { background: #d6d8db; }
+  .btn-modal-reset { background: #f0ad4e; color: #fff; }
+  .btn-modal-reset:hover { background: #ec971f; }
+
+  @media (max-width: 700px) {
+    .modal-image { flex: 0 0 100%; max-width: 100%; }
+  }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>📄 EBRO SCRAP FORM Extractor · Batch</h1>
-  <p class="subtitle">Upload multiple images, auto-resized, auto rate-limited (15 req/min on free tier), export a merged Excel file.</p>
+  <h1>📄 EBRO Form Extractor · Batch</h1>
+  <p class="subtitle">Upload multiple images, auto-resized, auto rate-limited (15 req/min on free tier), edit results, export a merged Excel file.</p>
 
   <div class="card">
     <div class="field">
@@ -301,6 +492,7 @@
   <div class="card result-section" id="resultSection">
     <div class="result-header">
       <h2>✅ Extraction Results</h2>
+      <p class="hint" style="margin: 0;">Click <b>Edit</b> on any row to correct the AI output before downloading.</p>
     </div>
 
     <div class="issues-banner" id="issuesBanner"></div>
@@ -313,11 +505,42 @@
       <span><i class="dot dot-missing"></i> Missing / null — needs review</span>
       <span><i class="dot dot-suspicious"></i> Suspicious value — double-check</span>
       <span><i class="dot dot-format"></i> Format mismatch — likely misaligned</span>
+      <span><i class="dot dot-edited"></i> Manually edited</span>
     </div>
 
     <div class="button-row">
       <button class="btn btn-excel" id="downloadExcelBtn">📊 Download Merged Excel</button>
-      <button class="btn btn-json" id="downloadJsonBtn">⬇️ Download Merged JSON</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <h3 id="modalTitle">Edit Extraction</h3>
+        <div class="file-label" id="modalFileLabel"></div>
+      </div>
+      <button class="modal-close" id="modalCloseBtn">×</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="modal-image">
+        <img id="modalImage" alt="Form preview" />
+        <div class="img-hint">Reference image — read the original form side by side</div>
+      </div>
+      <div class="modal-fields" id="modalFields"></div>
+    </div>
+
+    <div class="modal-footer">
+      <div class="left">
+        <button class="btn-modal btn-modal-reset" id="modalResetBtn">↺ Reset to AI values</button>
+      </div>
+      <div class="right">
+        <button class="btn-modal btn-modal-cancel" id="modalCancelBtn">Cancel</button>
+        <button class="btn-modal btn-modal-save" id="modalSaveBtn">💾 Save changes</button>
+      </div>
     </div>
   </div>
 </div>
@@ -346,11 +569,25 @@
   const issuesBanner = document.getElementById('issuesBanner');
   const resultTable = document.getElementById('resultTable');
   const downloadExcelBtn = document.getElementById('downloadExcelBtn');
-  const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+
+  // Modal elements
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalFileLabel = document.getElementById('modalFileLabel');
+  const modalImage = document.getElementById('modalImage');
+  const modalFields = document.getElementById('modalFields');
+  const modalCloseBtn = document.getElementById('modalCloseBtn');
+  const modalCancelBtn = document.getElementById('modalCancelBtn');
+  const modalSaveBtn = document.getElementById('modalSaveBtn');
+  const modalResetBtn = document.getElementById('modalResetBtn');
 
   let queue = [];
   let isRunning = false;
   let idCounter = 0;
+
+  // Modal state
+  let editingTaskId = null;
+  let editingDraft = null;
 
   const savedKey = localStorage.getItem(API_KEY_STORAGE);
   if (savedKey) apiKeyInput.value = savedKey;
@@ -393,9 +630,7 @@
   });
 
   // ============================================================
-  //  Image resize helper
-  //  Resize to fit within maxSize on the longest side.
-  //  Returns { blob, dataUrl, width, height, originalSize, resizedSize }
+  //  Image resize
   // ============================================================
   function getMaxSize() {
     const v = parseInt(maxSizeInput.value, 10);
@@ -411,7 +646,7 @@
         URL.revokeObjectURL(url);
         resolve(img);
       };
-      img.onerror = (e) => {
+      img.onerror = () => {
         URL.revokeObjectURL(url);
         reject(new Error('Failed to load image'));
       };
@@ -419,10 +654,6 @@
     });
   }
 
-  /**
-   * Resize a File into a JPEG Blob.
-   * Keeps aspect ratio. Never upscales.
-   */
   async function resizeImage(file) {
     const maxDim = getMaxSize();
     const img = await loadImage(file);
@@ -430,9 +661,7 @@
 
     const longest = Math.max(width, height);
     let scale = 1;
-    if (longest > maxDim) {
-      scale = maxDim / longest;
-    }
+    if (longest > maxDim) scale = maxDim / longest;
 
     const targetW = Math.round(width * scale);
     const targetH = Math.round(height * scale);
@@ -442,7 +671,6 @@
     canvas.height = targetH;
 
     const ctx = canvas.getContext('2d');
-    // White background in case the source has transparency (PNG)
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, targetW, targetH);
     ctx.drawImage(img, 0, 0, targetW, targetH);
@@ -478,9 +706,10 @@
         file,
         previewUrl: null,
         status: 'waiting',
-        json: null,
+        json: null,          // current (possibly edited) values
+        originalJson: null,  // AI values as returned
+        edited: false,       // has the user manually edited this row?
         error: null,
-        // populated after resize
         resizedBlob: null,
         resizedDataUrl: null,
         resizeInfo: null,
@@ -550,6 +779,10 @@
         ? `<div class="meta" style="color:#b02a37;">${escapeHtml(task.error)}</div>`
         : '';
 
+      const editedLine = task.edited
+        ? `<div class="meta" style="color:#217346;">✏️ Manually edited</div>`
+        : '';
+
       const retryBtn = task.status === 'error'
         ? `<button class="btn btn-retry" data-retry-id="${task.id}">🔁 Retry</button>`
         : '';
@@ -560,6 +793,7 @@
           <div class="name">${escapeHtml(task.file.name)}</div>
           <div class="meta">${escapeHtml(sizeInfo)}</div>
           ${errorLine}
+          ${editedLine}
         </div>
         <span class="state state-${task.status}">${statusLabel(task.status)}</span>
         ${retryBtn}
@@ -567,7 +801,6 @@
       queueList.appendChild(el);
     });
 
-    // Attach retry listeners
     queueList.querySelectorAll('[data-retry-id]').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = parseInt(btn.dataset.retryId, 10);
@@ -611,7 +844,7 @@
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // ============================================================
-  //  Field schema with enhanced spatial descriptions
+  //  Field schema
   // ============================================================
   const FIELD_SCHEMA = {
     header: {
@@ -725,7 +958,7 @@
   }
 
   // ============================================================
-  //  Format validation rules
+  //  Format rules
   // ============================================================
   const FORMAT_RULES = {
     'section_1.codigo_conjunto': {
@@ -787,7 +1020,7 @@
   }
 
   // ============================================================
-  //  Main batch flow
+  //  Batch flow
   // ============================================================
   extractBtn.addEventListener('click', async () => {
     if (isRunning) return;
@@ -795,7 +1028,6 @@
     if (!apiKey) return;
     const pending = queue.filter(t => t.status === 'waiting');
     if (!pending.length) return;
-
     await runBatch(pending, apiKey);
   });
 
@@ -806,11 +1038,12 @@
     const failed = queue.filter(t => t.status === 'error');
     if (!failed.length) return;
 
-    // Reset failed tasks to waiting
     failed.forEach(t => {
       t.status = 'waiting';
       t.error = null;
       t.json = null;
+      t.originalJson = null;
+      t.edited = false;
     });
     renderQueue();
     updateButtonState();
@@ -835,6 +1068,7 @@
         await rateLimiter.wait();
         const json = await extractOneWithRetry(task, apiKey);
         task.json = json;
+        task.originalJson = JSON.parse(JSON.stringify(json));
         task.status = 'success';
         task.error = null;
         success++;
@@ -892,6 +1126,8 @@
       await rateLimiter.wait();
       const json = await extractOneWithRetry(task, apiKey);
       task.json = json;
+      task.originalJson = JSON.parse(JSON.stringify(json));
+      task.edited = false;
       task.status = 'success';
       task.error = null;
       showStatus(`✅ Retried successfully: ${task.file.name}`, 'success');
@@ -906,14 +1142,12 @@
     renderQueue();
     updateButtonState();
 
-    // Refresh the result table if there are successes
     const successTasks = queue.filter(t => t.status === 'success' && t.json);
     if (successTasks.length) {
       renderResultTable(successTasks);
       resultSection.style.display = 'block';
     }
 
-    // Update summary
     const successCount = queue.filter(t => t.status === 'success').length;
     const failedCount = queue.filter(t => t.status === 'error').length;
     const pendingCount = queue.filter(t => t.status === 'waiting').length;
@@ -952,12 +1186,11 @@
   }
 
   // ============================================================
-  //  Gemini call with automatic retry on transient errors
+  //  Gemini calls
   // ============================================================
   async function extractOneWithRetry(task, apiKey) {
     const MAX_ATTEMPTS = 3;
-    const delays = [5000, 10000, 20000]; // ms between attempts
-
+    const delays = [5000, 10000, 20000];
     let lastErr = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -970,11 +1203,8 @@
           err.transient === true ||
           /high demand|overloaded|temporarily|try again|503|502|504|429/.test(msg);
 
-        if (!isTransient || attempt === MAX_ATTEMPTS) {
-          throw err;
-        }
+        if (!isTransient || attempt === MAX_ATTEMPTS) throw err;
 
-        // Mark as retrying, wait, then try again
         const waitMs = delays[attempt - 1] || 10000;
         task.status = 'retrying';
         task.error = `Attempt ${attempt} failed (${err.message}). Retrying in ${Math.round(waitMs / 1000)}s...`;
@@ -984,12 +1214,10 @@
         renderQueue();
       }
     }
-
     throw lastErr || new Error('Unknown error');
   }
 
   async function extractOne(task, apiKey) {
-    // Prefer the resized blob; fall back to the original file
     const sourceBlob = task.resizedBlob || task.file;
     const base64 = await blobToBase64(sourceBlob);
     const mimeType = sourceBlob.type || 'image/jpeg';
@@ -1026,9 +1254,7 @@
       const errBody = await response.json().catch(() => ({}));
       const apiMsg = errBody.error?.message || `HTTP ${response.status}`;
       const e = new Error(apiMsg);
-      if (response.status === 429 || response.status === 503 || response.status === 502 || response.status === 504) {
-        e.transient = true;
-      }
+      if ([429, 503, 502, 504].includes(response.status)) e.transient = true;
       throw e;
     }
 
@@ -1063,15 +1289,9 @@
   function unwrapSchemaEcho(obj) {
     if (obj === null || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) return obj.map(unwrapSchemaEcho);
-
-    if ('value' in obj && ('type' in obj || 'description' in obj)) {
-      return obj.value;
-    }
-
+    if ('value' in obj && ('type' in obj || 'description' in obj)) return obj.value;
     const out = {};
-    for (const key of Object.keys(obj)) {
-      out[key] = unwrapSchemaEcho(obj[key]);
-    }
+    for (const key of Object.keys(obj)) out[key] = unwrapSchemaEcho(obj[key]);
     return out;
   }
 
@@ -1082,24 +1302,18 @@
     const sig = obj.signatures;
     ['inspector', 'visto_bueno_calidad', 'encargado_linea'].forEach(key => {
       const raw = sig[key];
-      if (raw === null || raw === undefined) {
-        sig[key] = 'Not Signed';
-        return;
-      }
+      if (raw === null || raw === undefined) { sig[key] = 'Not Signed'; return; }
       const s = String(raw).trim().toLowerCase();
-      if (s === 'signed' || s === 'yes' || s === 'true' || s === 'signature' || s === 'signed.') {
+      if (['signed', 'yes', 'true', 'signature', 'signed.'].includes(s)) {
         sig[key] = 'Signed';
-      } else if (s === 'not signed' || s === 'no' || s === 'false' || s === 'empty' || s === 'unsigned') {
+      } else if (['not signed', 'no', 'false', 'empty', 'unsigned'].includes(s)) {
         sig[key] = 'Not Signed';
+      } else if (/sign/i.test(s) && !/not|no |empty|blank/i.test(s)) {
+        sig[key] = 'Signed';
       } else {
-        if (/sign/i.test(s) && !/not|no |empty|blank/i.test(s)) {
-          sig[key] = 'Signed';
-        } else {
-          sig[key] = 'Not Signed';
-        }
+        sig[key] = 'Not Signed';
       }
     });
-
     return obj;
   }
 
@@ -1110,10 +1324,6 @@
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-  }
-
-  function fileToBase64(file) {
-    return blobToBase64(file);
   }
 
   function flattenJson(obj) {
@@ -1145,24 +1355,32 @@
     return 'ok';
   }
 
+  // ============================================================
+  //  Result table
+  // ============================================================
   function renderResultTable(tasks) {
     const rows = tasks.map(t => ({
+      _taskId: t.id,
       _file: buildFilePath(t.file),
+      _edited: !!t.edited,
       ...flattenJson(t.json)
     }));
 
     const headerSet = new Set(['_file']);
-    rows.forEach(r => Object.keys(r).forEach(k => headerSet.add(k)));
+    rows.forEach(r => Object.keys(r).forEach(k => {
+      if (k === '_taskId' || k === '_edited') return;
+      headerSet.add(k);
+    }));
     const headers = Array.from(headerSet);
 
-    let missingCount = 0;
-    let suspiciousCount = 0;
-    let formatCount = 0;
+    let missingCount = 0, suspiciousCount = 0, formatCount = 0;
 
     const thead = document.createElement('thead');
     const headTr = document.createElement('tr');
-    headTr.innerHTML = `<th class="row-num">#</th>` +
-      headers.map(h => `<th title="${escapeHtml(h)}">${escapeHtml(h)}</th>`).join('');
+    headTr.innerHTML =
+      `<th class="row-num">#</th>` +
+      headers.map(h => `<th title="${escapeHtml(h)}">${escapeHtml(h)}</th>`).join('') +
+      `<th class="action-cell">Action</th>`;
     thead.appendChild(headTr);
 
     const tbody = document.createElement('tbody');
@@ -1188,33 +1406,45 @@
           }
         }
 
+        // If edited and the value is now OK, mark as edited
+        if (r._edited && status === 'ok') status = 'edited';
+
         let cls = '';
         let badge = '';
-        let display = raw;
 
         if (status === 'missing') {
           missingCount++;
           cls = 'cell-missing';
           badge = '<span class="cell-badge">missing</span>';
-          display = (raw === null || raw === undefined || String(raw).trim() === '') ? '—' : String(raw);
-          hint = 'Missing or null value';
+          hint = hint || 'Missing or null value';
         } else if (status === 'suspicious') {
           suspiciousCount++;
           cls = 'cell-suspicious';
           badge = '<span class="cell-badge">check</span>';
-          hint = 'Suspicious value — please verify';
+          hint = hint || 'Suspicious value — please verify';
         } else if (status === 'format-mismatch') {
           formatCount++;
           cls = 'cell-format-mismatch';
           badge = '<span class="cell-badge">format</span>';
           hint = hint || 'Value format does not match this field';
-        } else {
-          display = String(raw ?? '');
+        } else if (status === 'edited') {
+          cls = 'cell-edited';
+          badge = '<span class="cell-badge">edited</span>';
+          hint = 'Manually corrected';
         }
+
+        const display = (raw === null || raw === undefined || String(raw).trim() === '')
+          ? '—'
+          : String(raw);
 
         const extraClass = h === '_file' ? ' file-cell' : '';
         cells.push(`<td class="${cls}${extraClass}" title="${escapeHtml(hint)}">${escapeHtml(display)}${badge}</td>`);
       });
+
+      // Action cell
+      const editBtnCls = r._edited ? 'btn-edit-row edited' : 'btn-edit-row';
+      const editBtnText = r._edited ? '✏️ Edited' : '✏️ Edit';
+      cells.push(`<td class="action-cell"><button class="${editBtnCls}" data-edit-id="${r._taskId}">${editBtnText}</button></td>`);
 
       tr.innerHTML = cells.join('');
       tbody.appendChild(tr);
@@ -1224,19 +1454,239 @@
     resultTable.appendChild(thead);
     resultTable.appendChild(tbody);
 
+    // Attach edit listeners
+    resultTable.querySelectorAll('[data-edit-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.dataset.editId, 10);
+        openEditModal(id);
+      });
+    });
+
     const totalCells = rows.length * headers.length;
     const totalIssues = missingCount + suspiciousCount + formatCount;
+    const editedCount = rows.filter(r => r._edited).length;
+
     if (totalIssues === 0) {
       issuesBanner.classList.add('all-good');
-      issuesBanner.textContent = `✅ All ${totalCells} fields look good — no issues detected.`;
+      issuesBanner.textContent =
+        `✅ All ${totalCells} fields look good.` +
+        (editedCount ? ` ${editedCount} row(s) manually edited.` : '');
     } else {
       issuesBanner.classList.remove('all-good');
       issuesBanner.textContent =
         `⚠️ ${totalIssues} of ${totalCells} fields need review — ` +
-        `${missingCount} missing, ${suspiciousCount} suspicious, ${formatCount} format mismatch.`;
+        `${missingCount} missing, ${suspiciousCount} suspicious, ${formatCount} format mismatch.` +
+        (editedCount ? ` ${editedCount} row(s) manually edited.` : '') +
+        ` Click "Edit" to correct.`;
     }
   }
 
+  // ============================================================
+  //  Edit Modal
+  // ============================================================
+  function openEditModal(taskId) {
+    const task = queue.find(t => t.id === taskId);
+    if (!task || !task.json) return;
+
+    editingTaskId = taskId;
+    editingDraft = JSON.parse(JSON.stringify(task.json));
+
+    modalTitle.textContent = `Edit: ${task.file.name}`;
+    modalFileLabel.textContent = buildFilePath(task.file);
+    modalImage.src = task.previewUrl || task.resizedDataUrl || '';
+
+    renderEditFields(task);
+    modalOverlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeEditModal() {
+    modalOverlay.classList.remove('open');
+    document.body.style.overflow = '';
+    editingTaskId = null;
+    editingDraft = null;
+  }
+
+  function getFieldHint(path) {
+    // Build a short hint from the format rule
+    const rule = FORMAT_RULES[path];
+    return rule ? rule.hint : '';
+  }
+
+  function renderEditFields(task) {
+    modalFields.innerHTML = '';
+
+    const sections = Object.keys(editingDraft);
+    sections.forEach(section => {
+      const sectionEl = document.createElement('div');
+      sectionEl.style.marginBottom = '18px';
+
+      const sectionTitle = document.createElement('div');
+      sectionTitle.style.cssText = 'font-size:13px; font-weight:600; color:#333; margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid #eee;';
+      sectionTitle.textContent = section;
+      sectionEl.appendChild(sectionTitle);
+
+      const fields = editingDraft[section];
+      if (!fields || typeof fields !== 'object') {
+        sectionEl.appendChild(document.createTextNode(String(fields)));
+        modalFields.appendChild(sectionEl);
+        return;
+      }
+
+      Object.keys(fields).forEach(fieldKey => {
+        const path = `${section}.${fieldKey}`;
+        const originalValue = task.originalJson?.[section]?.[fieldKey];
+        const currentValue = fields[fieldKey];
+
+        const fieldEl = document.createElement('div');
+        fieldEl.className = 'edit-field';
+        fieldEl.dataset.path = path;
+
+        const isSignature = section === 'signatures';
+        const hint = getFieldHint(path);
+
+        const label = document.createElement('label');
+        label.htmlFor = `edit-${path}`;
+        label.innerHTML = escapeHtml(path) +
+          (hint ? `<span class="field-hint">${escapeHtml(hint)}</span>` : '');
+        fieldEl.appendChild(label);
+
+        let input;
+        if (isSignature) {
+          input = document.createElement('select');
+          input.id = `edit-${path}`;
+          ['Signed', 'Not Signed'].forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt;
+            o.textContent = opt;
+            if (String(currentValue) === opt) o.selected = true;
+            input.appendChild(o);
+          });
+          fieldEl.classList.add('sig-field');
+        } else {
+          // Long text -> textarea
+          const strVal = currentValue === null || currentValue === undefined ? '' : String(currentValue);
+          if (strVal.length > 60) {
+            input = document.createElement('textarea');
+            input.rows = 2;
+          } else {
+            input = document.createElement('input');
+            input.type = 'text';
+          }
+          input.id = `edit-${path}`;
+          input.value = strVal;
+        }
+
+        input.dataset.path = path;
+        input.addEventListener('input', onEditInput);
+        input.addEventListener('change', onEditInput);
+        fieldEl.appendChild(input);
+
+        // Show original AI value below if it differs from current
+        if (originalValue !== undefined && originalValue !== null &&
+            String(originalValue) !== String(currentValue)) {
+          const orig = document.createElement('div');
+          orig.className = 'original-value';
+          orig.textContent = `AI original: ${originalValue === '' ? '(empty)' : originalValue}`;
+          fieldEl.appendChild(orig);
+        }
+
+        // Mark as changed if different from original
+        if (String(originalValue ?? '') !== String(currentValue ?? '')) {
+          fieldEl.classList.add('changed');
+        }
+
+        sectionEl.appendChild(fieldEl);
+      });
+
+      modalFields.appendChild(sectionEl);
+    });
+  }
+
+  function onEditInput(e) {
+    const input = e.target;
+    const path = input.dataset.path;
+    if (!path || !editingDraft) return;
+
+    const [section, fieldKey] = path.split('.');
+    if (!editingDraft[section]) return;
+
+    let newVal = input.value;
+    if (newVal === '') newVal = null;
+
+    editingDraft[section][fieldKey] = newVal;
+
+    // Update "changed" styling
+    const fieldEl = input.closest('.edit-field');
+    const task = queue.find(t => t.id === editingTaskId);
+    const orig = task?.originalJson?.[section]?.[fieldKey];
+    const origStr = orig === null || orig === undefined ? '' : String(orig);
+    const newStr = newVal === null ? '' : String(newVal);
+
+    if (origStr !== newStr) {
+      fieldEl.classList.add('changed');
+    } else {
+      fieldEl.classList.remove('changed');
+    }
+
+    // Update original value note
+    const note = fieldEl.querySelector('.original-value');
+    if (note) {
+      if (origStr !== newStr) {
+        note.textContent = `AI original: ${origStr === '' ? '(empty)' : origStr}`;
+      } else {
+        note.remove();
+      }
+    } else if (origStr !== newStr) {
+      const div = document.createElement('div');
+      div.className = 'original-value';
+      div.textContent = `AI original: ${origStr === '' ? '(empty)' : origStr}`;
+      fieldEl.appendChild(div);
+    }
+  }
+
+  modalSaveBtn.addEventListener('click', () => {
+    if (editingTaskId === null || !editingDraft) return;
+    const task = queue.find(t => t.id === editingTaskId);
+    if (!task) return;
+
+    // Check if anything actually changed vs. the AI original
+    const orig = JSON.stringify(task.originalJson || {});
+    const curr = JSON.stringify(editingDraft || {});
+    task.json = editingDraft;
+    task.edited = orig !== curr;
+
+    closeEditModal();
+    renderQueue();
+
+    const successTasks = queue.filter(t => t.status === 'success' && t.json);
+    if (successTasks.length) renderResultTable(successTasks);
+
+    showStatus(`💾 Saved edits for ${task.file.name}${task.edited ? ' (marked as edited)' : ''}.`, 'success');
+  });
+
+  modalResetBtn.addEventListener('click', () => {
+    if (editingTaskId === null) return;
+    const task = queue.find(t => t.id === editingTaskId);
+    if (!task || !task.originalJson) return;
+    editingDraft = JSON.parse(JSON.stringify(task.originalJson));
+    renderEditFields(task);
+  });
+
+  modalCloseBtn.addEventListener('click', closeEditModal);
+  modalCancelBtn.addEventListener('click', closeEditModal);
+  modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) closeEditModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modalOverlay.classList.contains('open')) {
+      closeEditModal();
+    }
+  });
+
+  // ============================================================
+  //  Excel download
+  // ============================================================
   downloadExcelBtn.addEventListener('click', () => {
     const successTasks = queue.filter(t => t.status === 'success' && t.json);
     if (!successTasks.length) {
@@ -1259,28 +1709,14 @@
     XLSX.utils.book_append_sheet(wb, ws, 'EBRO Merged');
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     XLSX.writeFile(wb, `ebro-batch-${timestamp}.xlsx`);
-    showStatus(`📊 Exported ${rows.length} row(s).`, 'success');
-  });
 
-  downloadJsonBtn.addEventListener('click', () => {
-    const successTasks = queue.filter(t => t.status === 'success' && t.json);
-    if (!successTasks.length) {
-      showStatus('No successful results to export.', 'error');
-      return;
-    }
-    const out = successTasks.map(t => ({ _file: buildFilePath(t.file), ...t.json }));
-    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    a.href = url;
-    a.download = `ebro-batch-${timestamp}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showStatus('⬇️ JSON downloaded.', 'success');
+    const editedCount = successTasks.filter(t => t.edited).length;
+    showStatus(
+      `📊 Exported ${rows.length} row(s)` +
+      (editedCount ? ` (${editedCount} with manual edits).` : '.'),
+      'success'
+    );
   });
 </script>
-</body>
-</html>
 </body>
 </html>
