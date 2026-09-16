@@ -32,6 +32,10 @@
     width: 100%; padding: 10px 12px; border: 1px solid #ddd;
     border-radius: 8px; font-size: 14px;
   }
+  .field-row {
+    display: flex; gap: 16px; flex-wrap: wrap;
+  }
+  .field-row .field { flex: 1; min-width: 200px; }
   .hint { font-size: 12px; color: #999; margin-top: 6px; }
 
   .upload-area {
@@ -63,6 +67,17 @@
   .btn-json:hover:not(:disabled) { background: #5a6268; }
   .btn-clear { background: #dc3545; }
   .btn-clear:hover:not(:disabled) { background: #b02a37; }
+  .btn-retry {
+    background: #f0ad4e; color: #fff;
+    padding: 6px 14px; font-size: 12px;
+    width: auto; margin: 0; border-radius: 6px;
+    white-space: nowrap;
+  }
+  .btn-retry:hover:not(:disabled) { background: #ec971f; }
+  .btn-retry-all {
+    background: #f0ad4e; color: #fff;
+  }
+  .btn-retry-all:hover:not(:disabled) { background: #ec971f; }
 
   .button-row {
     display: flex; gap: 10px; margin-top: 16px;
@@ -76,6 +91,7 @@
   .status.error { color: #d32f2f; }
   .status.success { color: #2e7d32; }
   .status.loading { color: #1976d2; }
+  .status.warning { color: #b8860b; }
 
   .queue-list { margin-top: 20px; }
   .queue-item {
@@ -106,6 +122,7 @@
   .state-success { background: #d1e7dd; color: #0f5132; }
   .state-error { background: #f8d7da; color: #842029; }
   .state-cancelled { background: #e2e3e5; color: #41464b; }
+  .state-retrying { background: #fff3cd; color: #856404; }
 
   .progress-bar-wrap {
     margin-top: 16px; height: 8px;
@@ -235,7 +252,7 @@
 <body>
 <div class="container">
   <h1>📄 EBRO Form Extractor · Batch</h1>
-  <p class="subtitle">Upload multiple images, auto rate-limited (15 req/min on free tier), export a merged Excel file.</p>
+  <p class="subtitle">Upload multiple images, auto-resized, auto rate-limited (15 req/min on free tier), export a merged Excel file.</p>
 
   <div class="card">
     <div class="field">
@@ -244,12 +261,16 @@
       <p class="hint">No key yet? Get one free at <a href="https://aistudio.google.com" target="_blank">Google AI Studio</a></p>
     </div>
 
-    <div class="field" style="margin-bottom: 0;">
-      <label for="pathPrefix">Source Path Prefix (prepended to the <code>_file</code> column)</label>
-      <input type="text" id="pathPrefix" value="c/download/" placeholder="e.g. c/download/" />
-      <p class="hint">
-        Example: <code>c/download/</code> + <code>picture22.png</code> → <code>c/download/picture22.png</code>.
-      </p>
+    <div class="field-row">
+      <div class="field">
+        <label for="pathPrefix">Source Path Prefix (prepended to the <code>_file</code> column)</label>
+        <input type="text" id="pathPrefix" value="c/download/" placeholder="e.g. c/download/" />
+      </div>
+      <div class="field">
+        <label for="maxSize">Max image dimension (px, longest side)</label>
+        <input type="number" id="maxSize" value="1600" min="600" max="4000" step="100" />
+        <p class="hint">Smaller = faster upload &amp; lower token cost. 1600px keeps form text readable.</p>
+      </div>
     </div>
   </div>
 
@@ -257,12 +278,13 @@
     <div class="upload-area" id="uploadArea">
       <div class="icon">📤</div>
       <p>Click to select images, or drag &amp; drop multiple files here</p>
-      <p class="hint" style="margin-top: 4px;">Supports JPG, PNG, WEBP — multi-select allowed</p>
+      <p class="hint" style="margin-top: 4px;">Supports JPG, PNG, WEBP — images are auto-resized before upload</p>
     </div>
     <input type="file" id="fileInput" accept="image/*" multiple style="display: none;" />
 
     <div class="button-row">
       <button class="btn" id="extractBtn" disabled>🚀 Start Batch Extraction</button>
+      <button class="btn btn-retry-all" id="retryAllBtn" disabled>🔁 Retry Failed</button>
       <button class="btn btn-clear" id="clearBtn" disabled>🗑️ Clear</button>
     </div>
     <div class="status" id="status"></div>
@@ -303,14 +325,17 @@
 <script>
   const API_KEY_STORAGE = 'gemini_api_key';
   const PATH_PREFIX_STORAGE = 'source_path_prefix';
+  const MAX_SIZE_STORAGE = 'max_image_size';
   const MODEL = 'gemini-3.6-flash';
   const RATE_LIMIT_PER_MIN = 15;
 
   const apiKeyInput = document.getElementById('apiKey');
   const pathPrefixInput = document.getElementById('pathPrefix');
+  const maxSizeInput = document.getElementById('maxSize');
   const uploadArea = document.getElementById('uploadArea');
   const fileInput = document.getElementById('fileInput');
   const extractBtn = document.getElementById('extractBtn');
+  const retryAllBtn = document.getElementById('retryAllBtn');
   const clearBtn = document.getElementById('clearBtn');
   const statusEl = document.getElementById('status');
   const queueList = document.getElementById('queueList');
@@ -333,12 +358,18 @@
   const savedPrefix = localStorage.getItem(PATH_PREFIX_STORAGE);
   if (savedPrefix !== null) pathPrefixInput.value = savedPrefix;
 
+  const savedMaxSize = localStorage.getItem(MAX_SIZE_STORAGE);
+  if (savedMaxSize) maxSizeInput.value = savedMaxSize;
+
   apiKeyInput.addEventListener('input', () => {
     localStorage.setItem(API_KEY_STORAGE, apiKeyInput.value.trim());
     updateButtonState();
   });
   pathPrefixInput.addEventListener('input', () => {
     localStorage.setItem(PATH_PREFIX_STORAGE, pathPrefixInput.value);
+  });
+  maxSizeInput.addEventListener('input', () => {
+    localStorage.setItem(MAX_SIZE_STORAGE, maxSizeInput.value);
   });
 
   uploadArea.addEventListener('click', () => fileInput.click());
@@ -361,30 +392,142 @@
     }
   });
 
-  function addFiles(files) {
+  // ============================================================
+  //  Image resize helper
+  //  Resize to fit within maxSize on the longest side.
+  //  Returns { blob, dataUrl, width, height, originalSize, resizedSize }
+  // ============================================================
+  function getMaxSize() {
+    const v = parseInt(maxSizeInput.value, 10);
+    if (!v || v < 200) return 1600;
+    return v;
+  }
+
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = (e) => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to load image'));
+      };
+      img.src = url;
+    });
+  }
+
+  /**
+   * Resize a File into a JPEG Blob.
+   * Keeps aspect ratio. Never upscales.
+   */
+  async function resizeImage(file) {
+    const maxDim = getMaxSize();
+    const img = await loadImage(file);
+    let { width, height } = img;
+
+    const longest = Math.max(width, height);
+    let scale = 1;
+    if (longest > maxDim) {
+      scale = maxDim / longest;
+    }
+
+    const targetW = Math.round(width * scale);
+    const targetH = Math.round(height * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+
+    const ctx = canvas.getContext('2d');
+    // White background in case the source has transparency (PNG)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, targetW, targetH);
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    const blob = await new Promise(resolve =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.85)
+    );
+
+    return {
+      blob,
+      width: targetW,
+      height: targetH,
+      originalWidth: width,
+      originalHeight: height,
+      originalSize: file.size,
+      resizedSize: blob ? blob.size : 0,
+      dataUrl: canvas.toDataURL('image/jpeg', 0.85)
+    };
+  }
+
+  async function addFiles(files) {
     const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
     if (!imageFiles.length) {
       showStatus('Please select image files.', 'error');
       return;
     }
-    imageFiles.forEach(file => {
-      queue.push({
+
+    showStatus(`Resizing ${imageFiles.length} image(s)...`, 'loading');
+
+    for (const file of imageFiles) {
+      const task = {
         id: ++idCounter,
         file,
-        previewUrl: URL.createObjectURL(file),
+        previewUrl: null,
         status: 'waiting',
         json: null,
         error: null,
-      });
-    });
+        // populated after resize
+        resizedBlob: null,
+        resizedDataUrl: null,
+        resizeInfo: null,
+      };
+
+      try {
+        const resized = await resizeImage(file);
+        task.resizedBlob = resized.blob;
+        task.resizedDataUrl = resized.dataUrl;
+        task.resizeInfo = {
+          original: `${resized.originalWidth}×${resized.originalHeight}`,
+          resized: `${resized.width}×${resized.height}`,
+          originalKB: Math.round(resized.originalSize / 1024),
+          resizedKB: Math.round(resized.resizedSize / 1024),
+        };
+        task.previewUrl = resized.dataUrl;
+      } catch (err) {
+        console.error('Resize failed:', file.name, err);
+        task.previewUrl = URL.createObjectURL(file);
+        task.resizeInfo = { error: 'Resize failed, using original' };
+      }
+
+      queue.push(task);
+    }
+
     renderQueue();
     updateButtonState();
-    showStatus(`Added ${imageFiles.length} image(s). Total: ${queue.length}.`, 'success');
+
+    const totalOrigKB = queue
+      .filter(t => t.resizeInfo && t.resizeInfo.originalKB)
+      .reduce((s, t) => s + t.resizeInfo.originalKB, 0);
+    const totalNewKB = queue
+      .filter(t => t.resizeInfo && t.resizeInfo.resizedKB)
+      .reduce((s, t) => s + t.resizeInfo.resizedKB, 0);
+
+    showStatus(
+      `Added ${imageFiles.length} image(s). Queue: ${queue.length}. ` +
+      `Total size: ${totalOrigKB} KB → ${totalNewKB} KB.`,
+      'success'
+    );
   }
 
   function updateButtonState() {
     const hasPending = queue.some(t => t.status === 'waiting');
+    const hasFailed = queue.some(t => t.status === 'error');
     extractBtn.disabled = isRunning || !hasPending || !apiKeyInput.value.trim();
+    retryAllBtn.disabled = isRunning || !hasFailed || !apiKeyInput.value.trim();
     clearBtn.disabled = isRunning || queue.length === 0;
   }
 
@@ -398,15 +541,38 @@
     queue.forEach(task => {
       const el = document.createElement('div');
       el.className = 'queue-item';
+
+      const sizeInfo = task.resizeInfo && !task.resizeInfo.error
+        ? `${task.resizeInfo.original} → ${task.resizeInfo.resized} · ${task.resizeInfo.originalKB}KB → ${task.resizeInfo.resizedKB}KB`
+        : `${(task.file.size / 1024).toFixed(0)} KB`;
+
+      const errorLine = task.error
+        ? `<div class="meta" style="color:#b02a37;">${escapeHtml(task.error)}</div>`
+        : '';
+
+      const retryBtn = task.status === 'error'
+        ? `<button class="btn btn-retry" data-retry-id="${task.id}">🔁 Retry</button>`
+        : '';
+
       el.innerHTML = `
-        <img src="${task.previewUrl}" alt="" />
+        <img src="${task.previewUrl || ''}" alt="" />
         <div class="info">
           <div class="name">${escapeHtml(task.file.name)}</div>
-          <div class="meta">${(task.file.size / 1024).toFixed(0)} KB${task.error ? ' · ' + escapeHtml(task.error) : ''}</div>
+          <div class="meta">${escapeHtml(sizeInfo)}</div>
+          ${errorLine}
         </div>
         <span class="state state-${task.status}">${statusLabel(task.status)}</span>
+        ${retryBtn}
       `;
       queueList.appendChild(el);
+    });
+
+    // Attach retry listeners
+    queueList.querySelectorAll('[data-retry-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.dataset.retryId, 10);
+        retryOne(id);
+      });
     });
   }
 
@@ -417,6 +583,7 @@
       success: 'Success',
       error: 'Failed',
       cancelled: 'Cancelled',
+      retrying: 'Retrying',
     }[s] || s;
   }
 
@@ -445,7 +612,6 @@
 
   // ============================================================
   //  Field schema with enhanced spatial descriptions
-  //  Each field tells the model WHERE it is and WHAT it looks like.
   // ============================================================
   const FIELD_SCHEMA = {
     header: {
@@ -518,7 +684,6 @@
     }
   };
 
-  // Build the prompt dynamically from the schema
   function buildPrompt() {
     const lines = [];
     lines.push('You are a data extraction assistant. Extract all information from this EBRO Factory "Control Calidad" form image.');
@@ -560,7 +725,7 @@
   }
 
   // ============================================================
-  //  Format validation rules (post-extraction sanity check)
+  //  Format validation rules
   // ============================================================
   const FORMAT_RULES = {
     'section_1.codigo_conjunto': {
@@ -622,7 +787,7 @@
   }
 
   // ============================================================
-  //  Main flow
+  //  Main batch flow
   // ============================================================
   extractBtn.addEventListener('click', async () => {
     if (isRunning) return;
@@ -631,6 +796,28 @@
     const pending = queue.filter(t => t.status === 'waiting');
     if (!pending.length) return;
 
+    await runBatch(pending, apiKey);
+  });
+
+  retryAllBtn.addEventListener('click', async () => {
+    if (isRunning) return;
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) return;
+    const failed = queue.filter(t => t.status === 'error');
+    if (!failed.length) return;
+
+    // Reset failed tasks to waiting
+    failed.forEach(t => {
+      t.status = 'waiting';
+      t.error = null;
+      t.json = null;
+    });
+    renderQueue();
+    updateButtonState();
+    await runBatch(failed, apiKey);
+  });
+
+  async function runBatch(tasks, apiKey) {
     isRunning = true;
     updateButtonState();
     resultSection.style.display = 'none';
@@ -639,15 +826,17 @@
 
     let done = 0, success = 0, failed = 0;
 
-    for (const task of pending) {
+    for (const task of tasks) {
       if (task.status === 'cancelled') continue;
       task.status = 'processing';
       renderQueue();
+
       try {
         await rateLimiter.wait();
-        const json = await extractOne(task.file, apiKey);
+        const json = await extractOneWithRetry(task, apiKey);
         task.json = json;
         task.status = 'success';
+        task.error = null;
         success++;
       } catch (err) {
         console.error(task.file.name, err);
@@ -655,8 +844,9 @@
         task.status = 'error';
         failed++;
       }
+
       done++;
-      progressBar.style.width = `${(done / pending.length) * 100}%`;
+      progressBar.style.width = `${(done / tasks.length) * 100}%`;
       renderQueue();
       updateButtonState();
     }
@@ -665,17 +855,71 @@
     updateButtonState();
 
     summaryEl.style.display = 'block';
-    summaryEl.innerHTML = `✅ Succeeded: ${success} · ❌ Failed: ${failed} · Total: ${pending.length}`;
+    summaryEl.innerHTML = `✅ Succeeded: ${success} · ❌ Failed: ${failed} · Total: ${tasks.length}`;
 
     const successTasks = queue.filter(t => t.status === 'success' && t.json);
     if (successTasks.length) {
       renderResultTable(successTasks);
       resultSection.style.display = 'block';
-      showStatus(`🎉 Done. Succeeded: ${success}, Failed: ${failed}.`, success ? 'success' : 'error');
+      showStatus(
+        `🎉 Done. Succeeded: ${success}, Failed: ${failed}.` +
+        (failed ? ' Use "Retry Failed" or per-row Retry to try again.' : ''),
+        success ? 'success' : 'error'
+      );
     } else {
       showStatus('❌ All failed. Check your API Key or network.', 'error');
     }
-  });
+  }
+
+  async function retryOne(id) {
+    if (isRunning) return;
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) {
+      showStatus('Please enter your API Key first.', 'error');
+      return;
+    }
+    const task = queue.find(t => t.id === id);
+    if (!task) return;
+    if (task.status !== 'error') return;
+
+    isRunning = true;
+    task.status = 'processing';
+    task.error = null;
+    renderQueue();
+    updateButtonState();
+
+    try {
+      await rateLimiter.wait();
+      const json = await extractOneWithRetry(task, apiKey);
+      task.json = json;
+      task.status = 'success';
+      task.error = null;
+      showStatus(`✅ Retried successfully: ${task.file.name}`, 'success');
+    } catch (err) {
+      console.error(err);
+      task.error = err.message || 'Unknown error';
+      task.status = 'error';
+      showStatus(`❌ Retry failed: ${task.file.name}`, 'error');
+    }
+
+    isRunning = false;
+    renderQueue();
+    updateButtonState();
+
+    // Refresh the result table if there are successes
+    const successTasks = queue.filter(t => t.status === 'success' && t.json);
+    if (successTasks.length) {
+      renderResultTable(successTasks);
+      resultSection.style.display = 'block';
+    }
+
+    // Update summary
+    const successCount = queue.filter(t => t.status === 'success').length;
+    const failedCount = queue.filter(t => t.status === 'error').length;
+    const pendingCount = queue.filter(t => t.status === 'waiting').length;
+    summaryEl.style.display = 'block';
+    summaryEl.innerHTML = `✅ Succeeded: ${successCount} · ❌ Failed: ${failedCount} · ⏳ Pending: ${pendingCount}`;
+  }
 
   clearBtn.addEventListener('click', () => {
     if (isRunning) {
@@ -684,7 +928,11 @@
       updateButtonState();
       return;
     }
-    queue.forEach(t => URL.revokeObjectURL(t.previewUrl));
+    queue.forEach(t => {
+      if (t.previewUrl && t.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(t.previewUrl);
+      }
+    });
     queue = [];
     renderQueue();
     progressWrap.style.display = 'none';
@@ -703,58 +951,115 @@
     return file.name;
   }
 
-  // ---------- Gemini call ----------
-  async function extractOne(file, apiKey) {
-    const base64 = await fileToBase64(file);
-    const mimeType = file.type;
+  // ============================================================
+  //  Gemini call with automatic retry on transient errors
+  // ============================================================
+  async function extractOneWithRetry(task, apiKey) {
+    const MAX_ATTEMPTS = 3;
+    const delays = [5000, 10000, 20000]; // ms between attempts
+
+    let lastErr = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        return await extractOne(task, apiKey);
+      } catch (err) {
+        lastErr = err;
+        const msg = String(err.message || '').toLowerCase();
+        const isTransient =
+          err.transient === true ||
+          /high demand|overloaded|temporarily|try again|503|502|504|429/.test(msg);
+
+        if (!isTransient || attempt === MAX_ATTEMPTS) {
+          throw err;
+        }
+
+        // Mark as retrying, wait, then try again
+        const waitMs = delays[attempt - 1] || 10000;
+        task.status = 'retrying';
+        task.error = `Attempt ${attempt} failed (${err.message}). Retrying in ${Math.round(waitMs / 1000)}s...`;
+        renderQueue();
+        await sleep(waitMs);
+        task.status = 'processing';
+        renderQueue();
+      }
+    }
+
+    throw lastErr || new Error('Unknown error');
+  }
+
+  async function extractOne(task, apiKey) {
+    // Prefer the resized blob; fall back to the original file
+    const sourceBlob = task.resizedBlob || task.file;
+    const base64 = await blobToBase64(sourceBlob);
+    const mimeType = sourceBlob.type || 'image/jpeg';
     const prompt = buildPrompt();
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mimeType, data: base64 } }
-          ]
-        }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.1,
-          topP: 0.8,
-          maxOutputTokens: 2000
-        }
-      })
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mimeType, data: base64 } }
+            ]
+          }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+            topP: 0.8,
+            maxOutputTokens: 2000
+          }
+        })
+      });
+    } catch (netErr) {
+      const e = new Error('Network error: ' + netErr.message);
+      e.transient = true;
+      throw e;
+    }
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      if (response.status === 429) throw new Error('Rate limit hit (429). Please try again shortly.');
-      throw new Error(err.error?.message || `HTTP ${response.status}`);
+      const errBody = await response.json().catch(() => ({}));
+      const apiMsg = errBody.error?.message || `HTTP ${response.status}`;
+      const e = new Error(apiMsg);
+      if (response.status === 429 || response.status === 503 || response.status === 502 || response.status === 504) {
+        e.transient = true;
+      }
+      throw e;
     }
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error('Gemini returned no content.');
+    if (!text) {
+      const e = new Error('Gemini returned no content.');
+      e.transient = true;
+      throw e;
+    }
 
     let cleaned = text.trim()
       .replace(/^```json\s*/i, '')
       .replace(/^```\s*/i, '')
       .replace(/\s*```$/, '');
 
-    let parsed = JSON.parse(cleaned);
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      const e = new Error('Invalid JSON from model: ' + parseErr.message);
+      e.transient = true;
+      throw e;
+    }
+
     parsed = unwrapSchemaEcho(parsed);
     parsed = normalizeSignatures(parsed);
 
     return parsed;
   }
 
-  /**
-   * Gemini sometimes echoes the schema structure and wraps values in
-   * { type, description, value } objects. This function unwraps those.
-   */
   function unwrapSchemaEcho(obj) {
     if (obj === null || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) return obj.map(unwrapSchemaEcho);
@@ -770,9 +1075,6 @@
     return out;
   }
 
-  /**
-   * Normalize signature fields to exactly "Signed" or "Not Signed".
-   */
   function normalizeSignatures(obj) {
     if (!obj || typeof obj !== 'object') return obj;
     if (!obj.signatures || typeof obj.signatures !== 'object') return obj;
@@ -790,7 +1092,6 @@
       } else if (s === 'not signed' || s === 'no' || s === 'false' || s === 'empty' || s === 'unsigned') {
         sig[key] = 'Not Signed';
       } else {
-        // If it's a description that mentions "signature" but not "not"
         if (/sign/i.test(s) && !/not|no |empty|blank/i.test(s)) {
           sig[key] = 'Signed';
         } else {
@@ -802,13 +1103,17 @@
     return obj;
   }
 
-  function fileToBase64(file) {
+  function blobToBase64(blob) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result.split(',')[1]);
       reader.onerror = reject;
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(blob);
     });
+  }
+
+  function fileToBase64(file) {
+    return blobToBase64(file);
   }
 
   function flattenJson(obj) {
@@ -830,7 +1135,6 @@
     return flat;
   }
 
-  // ---------- Cell quality ----------
   function evaluateCell(value) {
     if (value === null || value === undefined) return 'missing';
     const s = String(value).trim();
@@ -841,7 +1145,6 @@
     return 'ok';
   }
 
-  // ---------- Result table ----------
   function renderResultTable(tasks) {
     const rows = tasks.map(t => ({
       _file: buildFilePath(t.file),
@@ -934,7 +1237,6 @@
     }
   }
 
-  // ---------- Downloads ----------
   downloadExcelBtn.addEventListener('click', () => {
     const successTasks = queue.filter(t => t.status === 'success' && t.json);
     if (!successTasks.length) {
@@ -978,5 +1280,7 @@
     showStatus('⬇️ JSON downloaded.', 'success');
   });
 </script>
+</body>
+</html>
 </body>
 </html>
