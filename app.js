@@ -28,6 +28,9 @@ const resultSection = document.getElementById('resultSection');
 const issuesBanner = document.getElementById('issuesBanner');
 const resultTable = document.getElementById('resultTable');
 const downloadExcelBtn = document.getElementById('downloadExcelBtn');
+const geminiModelRow = document.getElementById('geminiModelRow');
+const geminiModelSelect = document.getElementById('geminiModelSelect');
+const geminiModelHint = document.getElementById('geminiModelHint');
 
 // Modal
 const modalOverlay = document.getElementById('modalOverlay');
@@ -83,7 +86,13 @@ function attachEventListeners() {
     localStorage.setItem(PLATFORM_STORAGE, platformSelect.value);
     updatePlatformUI();
   });
-
+  
+  geminiModelSelect.addEventListener('change', () => {
+    localStorage.setItem(GEMINI_MODEL_STORAGE, geminiModelSelect.value);
+    updateGeminiModelHint();
+    updatePlatformUI(); // refresh platformHint with the new model name
+  });
+  
   apiKeyInput.addEventListener('input', () => {
     const platform = getCurrentPlatform();
     localStorage.setItem(getKeyStorageKey(platform), apiKeyInput.value.trim());
@@ -180,6 +189,33 @@ function attachEventListeners() {
 // ============================================================
 function getCurrentPlatform() { return platformSelect.value; }
 function getKeyStorageKey(platform) { return API_KEY_STORAGE_PREFIX + platform; }
+// ---- Gemini model selection ----
+function getCurrentGeminiModel() {
+  const stored = localStorage.getItem(GEMINI_MODEL_STORAGE);
+  const models = PLATFORMS.gemini.models || [];
+  // If stored value is valid, use it. Otherwise fall back to default.
+  if (stored && models.some(m => m.id === stored)) return stored;
+  return PLATFORMS.gemini.defaultModel;
+}
+
+function buildGeminiModelDropdown() {
+  const models = PLATFORMS.gemini.models || [];
+  geminiModelSelect.innerHTML = '';
+  models.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = m.label;
+    geminiModelSelect.appendChild(opt);
+  });
+  geminiModelSelect.value = getCurrentGeminiModel();
+  updateGeminiModelHint();
+}
+
+function updateGeminiModelHint() {
+  const selected = geminiModelSelect.value;
+  const model = (PLATFORMS.gemini.models || []).find(m => m.id === selected);
+  geminiModelHint.textContent = model ? model.note : '';
+}
 
 function updatePlatformUI() {
   const platform = getCurrentPlatform();
@@ -188,10 +224,18 @@ function updatePlatformUI() {
   apiKeyBadge.className = `platform-badge ${cfg.badgeClass}`;
   apiKeyInput.placeholder = cfg.placeholder;
   apiKeyHint.textContent = cfg.keyHint;
-  platformHint.textContent = `Model: ${cfg.defaultModel}`;
+  platformHint.textContent = `Model: ${platform === 'gemini' ? getCurrentGeminiModel() : cfg.defaultModel}`;
 
   balancePanel.style.display = (platform === 'deepseek') ? 'block' : 'none';
-
+  
+  // Gemini model row only for Gemini
+  if (platform === 'gemini') {
+    geminiModelRow.style.display = 'flex';
+    buildGeminiModelDropdown();
+  } else {
+    geminiModelRow.style.display = 'none';
+  }
+  
   const stored = localStorage.getItem(getKeyStorageKey(platform));
   apiKeyInput.value = stored || '';
   updateButtonState();
@@ -666,6 +710,7 @@ async function callAI(task, apiKey, platform) {
 
 async function callGemini({ base64, mimeType, prompt, apiKey }) {
   const cfg = PLATFORMS.gemini;
+  const modelId = getCurrentGeminiModel();
   const url = `${cfg.endpoint(cfg.defaultModel)}?key=${apiKey}`;
 
   let response;
