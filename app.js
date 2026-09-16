@@ -913,7 +913,10 @@ function renderResultTable(tasks) {
   const headTr = document.createElement('tr');
   headTr.innerHTML =
     `<th class="row-num">#</th>` +
-    headers.map(h => `<th title="${escapeHtml(h)}">${escapeHtml(h)}</th>`).join('') +
+    headers.map(h => {
+      const display = getDisplayHeader(h);
+      return `<th title="${escapeHtml(h)}">${escapeHtml(display)}</th>`;
+    }).join('') +
     `<th class="action-cell">Action</th>`;
   thead.appendChild(headTr);
 
@@ -1019,6 +1022,17 @@ function renderResultTable(tasks) {
   }
 }
 
+/**
+ * Convert a flattened path to a short display header.
+ *   'header.company'              -> 'company'
+ *   'section_1.codigo_componente' -> 'codigo_componente'
+ *   'signatures.encargado_linea'  -> 'encargado_linea'
+ *   '_file'                       -> '_file'
+ */
+function getDisplayHeader(path) {
+  const parts = String(path).split('.');
+  return parts[parts.length - 1];
+}
 // ============================================================
 //  Zoom
 // ============================================================
