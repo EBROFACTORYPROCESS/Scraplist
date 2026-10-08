@@ -56,6 +56,12 @@ const errorList = document.getElementById('errorList');
 const errorCount = document.getElementById('errorCount');
 const downloadErrorListBtn = document.getElementById('downloadErrorListBtn');
 
+// Function Guide
+const openGuideBtn       = document.getElementById('openGuideBtn');
+const guideOverlay       = document.getElementById('guideOverlay');
+const guideCloseBtn      = document.getElementById('guideCloseBtn');
+const guideCloseFooterBtn= document.getElementById('guideCloseFooterBtn');
+
 // Modal
 const modalOverlay = document.getElementById('modalOverlay');
 const modalTitle = document.getElementById('modalTitle');
@@ -189,7 +195,32 @@ function attachEventListeners() {
       fileInput.value = '';
     }
   });
+  // ---- Function Guide ----
+  if (openGuideBtn)        openGuideBtn.addEventListener('click', openGuide);
+  if (guideCloseBtn)       guideCloseBtn.addEventListener('click', closeGuide);
+  if (guideCloseFooterBtn) guideCloseFooterBtn.addEventListener('click', closeGuide);
 
+  if (guideOverlay) {
+    guideOverlay.addEventListener('click', (e) => {
+      if (e.target === guideOverlay) closeGuide();
+    });
+  }
+
+  // Smooth scroll for TOC links
+  document.querySelectorAll('.guide-toc a').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // Esc closes the guide (independent of the edit modal)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && guideOverlay?.classList.contains('open')) {
+      closeGuide();
+    }
+  });
   // Buttons
   extractBtn.addEventListener('click', onExtractClick);
   retryAllBtn.addEventListener('click', onRetryAllClick);
