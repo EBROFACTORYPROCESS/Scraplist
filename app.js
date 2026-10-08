@@ -3534,6 +3534,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+// ============================================================
+//  Function Guide
+// ============================================================
+function openGuide() {
+  if (!guideOverlay) return;
+  guideOverlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeGuide() {
+  if (!guideOverlay) return;
+  guideOverlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
 // Expose to window so you can call them from the Console
 window.showCorrectionLibrary = showCorrectionLibrary;
 window.clearCorrectionLibrary = clearCorrectionLibrary;
