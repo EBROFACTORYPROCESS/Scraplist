@@ -16,8 +16,15 @@
 <body>
 <div class="container">
   <header class="page-header">
-    <h1>📄 EBRO Scrap Form Processor</h1>
-    <p class="subtitle">Choose AI platform, upload images, extract, edit, and export merged Excel.</p>
+    <div class="header-row">
+      <div>
+        <h1>📄 EBRO Scrap Form Processor</h1>
+        <p class="subtitle">Choose AI platform, upload images, extract, edit, and export merged Excel.</p>
+      </div>
+      <button class="btn-guide" id="openGuideBtn" title="Open the Function Guide">
+        📖 Function Guide
+      </button>
+    </div>
   </header>
 
   <div class="layout">
@@ -238,7 +245,264 @@
     </div>
   </div>
 </div>
+<!-- ============================================================
+     FUNCTION GUIDE MODAL — end-user documentation
+     ============================================================ -->
+<div class="modal-overlay guide-overlay" id="guideOverlay">
+  <div class="guide-modal">
 
+    <div class="guide-header">
+      <div>
+        <h2>📖 Function Guide</h2>
+        <p class="guide-subtitle">Everything you need to know to use this tool</p>
+      </div>
+      <button class="modal-close" id="guideCloseBtn" title="Close">×</button>
+    </div>
+
+    <div class="guide-body">
+
+      <!-- Table of Contents -->
+      <aside class="guide-toc">
+        <h3>Contents</h3>
+        <ul>
+          <li><a href="#guide-overview">Overview</a></li>
+          <li><a href="#guide-quickstart">Quick Start</a></li>
+          <li><a href="#guide-ai">AI Configuration</a></li>
+          <li><a href="#guide-input">Input Modes</a></li>
+          <li><a href="#guide-processing">Processing</a></li>
+          <li><a href="#guide-quality">Quality Audit</a></li>
+          <li><a href="#guide-editing">Editing Forms</a></li>
+          <li><a href="#guide-corrections">Correction Library</a></li>
+          <li><a href="#guide-export">Excel Export</a></li>
+          <li><a href="#guide-troubleshooting">Troubleshooting</a></li>
+        </ul>
+      </aside>
+
+      <!-- Content -->
+      <div class="guide-content" id="guideContent">
+
+        <section id="guide-overview">
+          <h3>🎯 What is this tool?</h3>
+          <p>
+            <strong>EBRO Scrap Form Processor</strong> turns photos or scans of EBRO
+            <em>"Control Calidad"</em> forms into clean, structured Excel reports.
+            It uses an AI vision model to read the handwriting on each form, validates the result,
+            and lets you review and correct it before exporting.
+          </p>
+          <div class="guide-callout info">
+            🔒 <strong>Your data stays private.</strong> Images go directly from your browser to the
+            AI provider you choose. There is no server, no tracking, and no build step.
+          </div>
+        </section>
+
+        <section id="guide-quickstart">
+          <h3>🚀 Quick Start</h3>
+          <ol class="guide-steps">
+            <li><strong>Pick an AI platform</strong> (Gemini or DeepSeek) and paste your API key.</li>
+            <li><strong>Choose an input mode</strong> — Upload (drag &amp; drop) or Local Folder (Chrome/Edge/Opera only).</li>
+            <li><strong>Add your images.</strong> The app auto-converts HEIC, fixes rotation, and compresses each file.</li>
+            <li><strong>Processing starts automatically</strong> (if Auto-process is checked) as soon as the first image is ready.</li>
+            <li><strong>Review the results</strong> — click <em>Edit</em> on any row to fix fields against the original image.</li>
+            <li><strong>Download the Excel</strong> with the green <em>Download Merged Excel</em> button.</li>
+          </ol>
+        </section>
+
+        <section id="guide-ai">
+          <h3>⚙️ AI Configuration</h3>
+          <table class="guide-table">
+            <thead>
+              <tr><th>Field</th><th>What it does</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>AI Platform</strong></td>
+                <td>Switch between <em>Google Gemini</em> (free tier available) and <em>DeepSeek</em> (paid, with live balance).</td>
+              </tr>
+              <tr>
+                <td><strong>API Key</strong></td>
+                <td>Paste your key. It is stored per-platform in your browser only.</td>
+              </tr>
+              <tr>
+                <td><strong>Gemini Model</strong></td>
+                <td>Choose the model — Flash for quality, Flash-Lite for speed / higher free quota, Pro for paid high-quality runs.</td>
+              </tr>
+              <tr>
+                <td><strong>DeepSeek Balance</strong></td>
+                <td>Shown only for DeepSeek. Displays total, granted, and topped-up balance.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="guide-callout tip">
+            💡 <strong>Tip:</strong> For high-volume batches, use <em>Gemini Flash-Lite</em> —
+            it has the most generous free daily quota.
+          </div>
+        </section>
+
+        <section id="guide-input">
+          <h3>📥 Input Modes</h3>
+
+          <h4>📤 Upload mode (works everywhere)</h4>
+          <ul>
+            <li>Drag &amp; drop images onto the drop zone, or click to browse.</li>
+            <li>Set a <strong>Path Prefix</strong> (e.g. <code>c/download/</code>) — it gets prepended to the <code>_file</code> column in the export.</li>
+            <li>Best for: one-off batches, phones, non-Chrome browsers.</li>
+          </ul>
+
+          <h4>📁 Local Folder mode (Chrome / Edge / Opera)</h4>
+          <ul>
+            <li>Authorize three folders: <strong>Input</strong>, <strong>Readed</strong>, and <strong>Error</strong>.</li>
+            <li><strong>Input</strong> — where unprocessed forms live.</li>
+            <li><strong>Readed</strong> — where successful forms are moved (converted to <code>.jpg</code>).</li>
+            <li><strong>Error</strong> — where failures land so you can inspect and retry.</li>
+            <li>Each processed file is written to its target folder and the original is deleted.</li>
+            <li>Folder handles are remembered — you only need to re-grant permission once per session.</li>
+          </ul>
+          <div class="guide-callout warn">
+            ⚠️ Local Folder mode is unavailable on Firefox and Safari. The Folder tab will be disabled.
+          </div>
+        </section>
+
+        <section id="guide-processing">
+          <h3>⏳ Processing</h3>
+          <ul>
+            <li><strong>Auto-process</strong> — starts the AI as soon as the first image is compressed, so large batches never sit idle.</li>
+            <li><strong>Queue</strong> — shows every file with its thumbnail, resize stats, and live status.</li>
+            <li><strong>Rate limiting</strong> — requests are throttled to ~15 per minute by default.</li>
+            <li><strong>Retries</strong> — network errors, 429s, and 503s are retried up to 3 times with backoff (5s → 10s → 20s).</li>
+            <li><strong>Wake Lock</strong> — the screen stays awake while processing so long runs aren't interrupted.</li>
+          </ul>
+        </section>
+
+        <section id="guide-quality">
+          <h3>📊 Quality Audit</h3>
+          <p>Every batch gets an automatic quality review:</p>
+
+          <h4>Data Quality Score (0–100%)</h4>
+          <p>
+            Weighted combination of key parameters (70%) and other fields (30%).
+            <span class="guide-pill good">≥ 90% good</span>
+            <span class="guide-pill warn">70–89% needs review</span>
+            <span class="guide-pill bad">&lt; 70% poor</span>
+          </p>
+
+          <h4>Per-row status light</h4>
+          <ul>
+            <li><span class="status-light green"></span> <strong>Green</strong> — everything looks good.</li>
+            <li><span class="status-light yellow"></span> <strong>Yellow</strong> — non-key fields are missing or suspicious.</li>
+            <li><span class="status-light red"></span> <strong>Red</strong> — a key parameter is missing or invalid.</li>
+          </ul>
+
+          <h4>Cell highlighting</h4>
+          <table class="guide-table">
+            <thead>
+              <tr><th>Colour</th><th>Meaning</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="guide-cell cell-missing">red</span></td><td>Missing or empty value.</td></tr>
+              <tr><td><span class="guide-cell cell-suspicious">yellow</span></td><td>Suspicious value (illegible, single char, unusual quantity, etc.).</td></tr>
+              <tr><td><span class="guide-cell cell-format-mismatch">red + border</span></td><td>Value doesn't match the expected format for that field.</td></tr>
+              <tr><td><span class="guide-cell cell-edited">green + border</span></td><td>You manually corrected this cell.</td></tr>
+              <tr><td><span class="guide-cell cell-category-scrap">green badge</span></td><td>Process Scrap Parts ticket.</td></tr>
+              <tr><td><span class="guide-cell cell-category-supplier">orange badge</span></td><td>Supplier Claim Parts ticket.</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="guide-editing">
+          <h3>✏️ Editing Forms</h3>
+          <p>Click <em>Edit</em> on any row in the results table to open the side-by-side editor.</p>
+          <ul>
+            <li><strong>Left pane</strong> — the original image with pan, zoom (Ctrl + wheel), rotate (↺ ↻), Fit W, Fit H, and 1:1 controls.</li>
+            <li><strong>Right pane</strong> — every extracted field, grouped by section.</li>
+            <li>Edited fields turn <span style="color:#217346;font-weight:600;">green</span> and show the AI's original value underneath.</li>
+            <li>Signatures and ticket category become dropdowns.</li>
+            <li>Changes are only saved when you click <strong>💾 Save changes</strong>.</li>
+          </ul>
+        </section>
+
+        <section id="guide-corrections">
+          <h3>📚 Correction Library</h3>
+          <p>
+            The app <strong>learns from your edits</strong>. When you fix a field and save,
+            the pair <em>(wrong AI value → your correct value)</em> is recorded.
+          </p>
+          <ul>
+            <li>After the same correction is seen <strong>2 or more times</strong>, it becomes <strong>ACTIVE</strong>.</li>
+            <li>Active corrections are applied automatically to future extractions.</li>
+            <li>Open the library with the <strong>📚 View Corrections</strong> button in the results header.</li>
+            <li>You can delete individual entries or clear the whole library at any time.</li>
+          </ul>
+          <div class="guide-callout tip">
+            💡 The library lives only in <em>this browser</em>. Clearing your browser data will erase it.
+          </div>
+        </section>
+
+        <section id="guide-export">
+          <h3>📤 Excel Export</h3>
+          <h4>📊 Download Merged Excel — 3 sheets</h4>
+          <table class="guide-table">
+            <thead>
+              <tr><th>Sheet</th><th>Contents</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>EBRO Merged</strong></td><td>One row per form, with <code>_file</code> + all extracted fields.</td></tr>
+              <tr><td><strong>Extraction Results</strong></td><td>Row number, status colour, judgement reason, then all fields.</td></tr>
+              <tr><td><strong>Parameter Summary</strong></td><td>Overall quality score + per-key-parameter missing / present counts.</td></tr>
+            </tbody>
+          </table>
+
+          <h4>🚫 Download Error List</h4>
+          <p>
+            A separate workbook listing every failed form with its file path, error reason,
+            file sizes, current location, and any partial data captured.
+          </p>
+        </section>
+
+        <section id="guide-troubleshooting">
+          <h3>🛠 Troubleshooting</h3>
+          <table class="guide-table">
+            <thead>
+              <tr><th>Symptom</th><th>Fix</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>"Browser does not support File System Access API"</td>
+                <td>Use Chrome / Edge / Opera over <code>http(s)://</code>, or switch to Upload mode.</td>
+              </tr>
+              <tr>
+                <td>Frequent "INVALID_IMAGE" errors</td>
+                <td>The AI decided the photo isn't a Control Calidad form. Retries are intentionally disabled for these.</td>
+              </tr>
+              <tr>
+                <td>Repeated 429 / 503 errors</td>
+                <td>You hit the model's rate limit. Switch to a Flash-Lite model or a paid tier.</td>
+              </tr>
+              <tr>
+                <td>Folders must be re-authorized every session</td>
+                <td>Browsers reset folder permissions on reload. One click per folder per session.</td>
+              </tr>
+              <tr>
+                <td>Queue stuck on "Waiting"</td>
+                <td>The consumer hasn't started. Click <strong>🚀 Start Batch</strong> / <strong>Process &amp; Move</strong>.</td>
+              </tr>
+              <tr>
+                <td>Balance panel stays empty</td>
+                <td>Only DeepSeek exposes a balance endpoint. Gemini doesn't.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+      </div>
+    </div>
+
+    <div class="guide-footer">
+      <span class="guide-hint">Tip: press <kbd>Esc</kbd> to close</span>
+      <button class="btn-modal btn-modal-save" id="guideCloseFooterBtn">Got it</button>
+    </div>
+
+  </div>
+</div>
 <!-- ============================================================
      Edit Modal
      ============================================================ -->
